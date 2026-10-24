@@ -5,7 +5,10 @@ PROJECT_DIR := $(CURDIR)
 SGOINFRE ?= $(HOME)/sgoinfre
 VENV_DIR ?= $(SGOINFRE)/venvs/call-me-maybe
 PYTHON ?= python3.10
+THREADS ?= 4
 
+export OMP_NUM_THREADS := $(THREADS)
+export MKL_NUM_THREADS := $(THREADS)
 export UV_CACHE_DIR ?= $(SGOINFRE)/uv-cache
 export UV_LINK_MODE := copy
 export UV_PROJECT_ENVIRONMENT := $(VENV_DIR)

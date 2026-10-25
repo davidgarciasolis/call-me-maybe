@@ -5,7 +5,7 @@ PROJECT_DIR := $(CURDIR)
 SGOINFRE ?= $(HOME)/sgoinfre
 VENV_DIR ?= $(SGOINFRE)/venvs/call-me-maybe
 PYTHON ?= python3.10
-THREADS ?= 4
+THREADS ?= 2
 
 export OMP_NUM_THREADS := $(THREADS)
 export MKL_NUM_THREADS := $(THREADS)

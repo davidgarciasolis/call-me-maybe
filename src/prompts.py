@@ -33,6 +33,15 @@ def construir_prompt(
 
     funciones_json = json.dumps(funciones, separators=(",", ":"))
 
+    if nombre_modelo == "LiquidAI/LFM2.5-230M":
+        texto = (
+            f"<|startoftext|><|im_start|>system\n{instrucciones}\n"
+            f"List of tools: {funciones_json}<|im_end|>\n"
+            f"<|im_start|>user\n{promt}<|im_end|>\n"
+            "<|im_start|>assistant\n"
+        )
+        return texto
+
     if nombre_modelo == "openai-community/gpt2":
         texto = (
             f"{instrucciones}\nAvailable functions:\n{funciones_json}\n"

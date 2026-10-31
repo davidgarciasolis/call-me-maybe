@@ -10,6 +10,7 @@ its arguments; it never executes the function.
 `google/gemma-3-270m-it` is also available through `--model`.
 `openai-community/gpt2` is available for experiments using a plain-text
 completion prompt rather than a chat template.
+`LiquidAI/LFM2.5-230M` uses its own ChatML template and a ByteLevel decoder.
 
 Constrained decoding masks invalid token logits with negative infinity before
 choosing the next token. The rules come from the input definitions, so the
@@ -68,6 +69,12 @@ make run ARGS="--model openai-community/gpt2 --verbose"
 
 GPT-2 is a base text-completion model, so valid constrained JSON does not
 establish correct function selection or argument extraction.
+
+To try LFM2.5-230M:
+
+```sh
+make run ARGS="--model LiquidAI/LFM2.5-230M --verbose"
+```
 
 ### Makefile
 
@@ -220,6 +227,14 @@ modules are checked. Tests are kept outside the delivered repository as
 requested by the subject.
 
 ## Performance analysis
+
+LFM2.5-230M was tested with the five sample functions and two CPU threads.
+The sum request correctly produced `fn_add_numbers` with `a: 2` and `b: 3`
+in 183.17 seconds. `Greet María` produced `fn_greet` with `name: "maria"`
+in 161.36 seconds, losing the original case and accent. Both calls passed
+schema validation, but only the sum had the exact expected arguments.
+The third request was interrupted after these results; the final array was
+not saved. These two examples do not establish overall accuracy.
 
 A real GPT-2 test with the same five functions and sum request correctly
 produced `fn_add_numbers` with `a: 2` and `b: 3` and saved valid JSON.

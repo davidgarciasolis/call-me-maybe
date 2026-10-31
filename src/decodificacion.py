@@ -30,6 +30,7 @@ def preparar_tokens(
     """
     tokenizador: Any
     decoder: Any
+    decodificadores: Any
     agregado: Any
     excluidos: set[int]
     bytes_directos: list[int]
@@ -47,6 +48,10 @@ def preparar_tokens(
     if not isinstance(tokenizador, dict):
         raise ValueError("El tokenizador debe ser un objeto JSON.")
     decoder = tokenizador.get("decoder")
+    if isinstance(decoder, dict) and decoder.get("type") == "Sequence":
+        decodificadores = decoder.get("decoders")
+        if isinstance(decodificadores, list) and len(decodificadores) == 1:
+            decoder = decodificadores[0]
     gemma = decoder == {
         "type": "Sequence",
         "decoders": [

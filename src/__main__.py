@@ -58,6 +58,7 @@ def leer_argumentos(argv: list[str] | None = None) -> argparse.Namespace:
         "--model", choices=[
             "Qwen/Qwen3-0.6B", "google/gemma-3-270m-it",
             "openai-community/gpt2",
+            "LiquidAI/LFM2.5-230M",
         ],
         default="Qwen/Qwen3-0.6B",
     )

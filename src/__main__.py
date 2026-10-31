@@ -11,6 +11,7 @@ from .error import (
 from .modelo import cargar_vocabulario, inicializar_modelo
 from .parseo import load_functions, load_prompts
 from .prompts import construir_prompt
+from .restricciones import validar_llamada
 
 
 def generar_respuesta(modelo: Any, ids: list[int]) -> str:
@@ -105,6 +106,7 @@ def procesar_promts(
 
             respuesta = generar_respuesta(modelo, ids)
             llamada = json.loads(respuesta)
+            llamada = validar_llamada(llamada, funciones)
             resultado = {
                 "prompt": promt["prompt"],
                 "name": llamada["name"],

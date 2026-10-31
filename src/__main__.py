@@ -105,8 +105,7 @@ def procesar_promts(
             print(ids)
 
             respuesta = generar_respuesta(modelo, ids)
-            llamada = json.loads(respuesta)
-            llamada = validar_llamada(llamada, funciones)
+            llamada = validar_llamada(json.loads(respuesta), funciones)
             resultado = {
                 "prompt": promt["prompt"],
                 "name": llamada["name"],

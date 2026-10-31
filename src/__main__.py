@@ -85,6 +85,8 @@ def procesar_promts(
     listas_ids: list[list[int]]
     ids: list[int]
     respuesta: str
+    llamada: dict[str, Any]
+    resultado: dict[str, Any]
     error: Exception
 
     print("Prompts preparados para el modelo:")
@@ -102,8 +104,14 @@ def procesar_promts(
             print(ids)
 
             respuesta = generar_respuesta(modelo, ids)
-            print("Respuesta sin restricciones:")
-            print(respuesta)
+            llamada = json.loads(respuesta)
+            resultado = {
+                "prompt": promt["prompt"],
+                "name": llamada["name"],
+                "parameters": llamada["parameters"],
+            }
+            print("Resultado:")
+            print(json.dumps(resultado, ensure_ascii=False))
         except Exception as error:
             raise ErrorProcesamientoPromts(
                 f"Petición {indice}: {error}"

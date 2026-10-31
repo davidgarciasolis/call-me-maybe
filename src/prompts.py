@@ -17,9 +17,7 @@ def construir_prompt(
         "Choose one of the available functions for the user's request.\n"
         "Extract its arguments from the request. Do not execute it.\n"
         "Return only a JSON object with the keys "
-        '"prompt", "name" and "parameters", in that order.\n'
-        'Set "prompt" to the exact original user request, '
-        "without translating or rephrasing it.\n"
+        '"name" and "parameters", in that order.\n'
         "Escape special characters as required by JSON. "
         "Do not add extra keys, explanations or Markdown.\n"
         "Use the exact function name and parameter names, "

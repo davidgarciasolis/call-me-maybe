@@ -23,9 +23,9 @@ def preparar_tokens(
 ) -> dict[int, bytes]:
     """Relaciona los IDs del vocabulario con sus bytes originales.
 
-    Lee tokenizer.json mediante el método público del SDK. Solo admite
-    un decoder ByteLevel y excluye todos los tokens añadidos, incluidos
-    los especiales. Los bytes de un token pueden ser UTF-8 incompleto.
+    Lee tokenizer.json mediante el método público del SDK. Admite ByteLevel
+    y la secuencia Replace/ByteFallback/Fuse de Gemma. Excluye los tokens
+    añadidos. Los bytes de un token pueden ser UTF-8 incompleto.
     Los errores de lectura o de formato se propagan al llamador.
     """
     tokenizador: Any
@@ -41,13 +41,24 @@ def preparar_tokens(
     identificador: int
     contenido: bytearray
     tokens: dict[int, bytes]
+    gemma: bool
 
     tokenizador = read_json(modelo.get_path_to_tokenizer_file())
     if not isinstance(tokenizador, dict):
         raise ValueError("El tokenizador debe ser un objeto JSON.")
     decoder = tokenizador.get("decoder")
-    if not isinstance(decoder, dict) or decoder.get("type") != "ByteLevel":
-        raise ValueError("Se necesita un decoder ByteLevel.")
+    gemma = decoder == {
+        "type": "Sequence",
+        "decoders": [
+            {"type": "Replace", "pattern": {"String": "▁"}, "content": " "},
+            {"type": "ByteFallback"},
+            {"type": "Fuse"},
+        ],
+    }
+    if not gemma and (
+        not isinstance(decoder, dict) or decoder.get("type") != "ByteLevel"
+    ):
+        raise ValueError("Decoder no admitido: se necesita ByteLevel o Gemma.")
     if not vocabulario:
         raise ValueError("El vocabulario no puede estar vacío.")
     if tokenizador.get("model", {}).get("vocab") != vocabulario:
@@ -79,6 +90,13 @@ def preparar_tokens(
             continue
         if identificador in tokens:
             raise ValueError(f"ID de token duplicado: {identificador}.")
+
+        if gemma:
+            if re.fullmatch(r"<0x[0-9A-Fa-f]{2}>", token):
+                tokens[identificador] = bytes([int(token[3:5], 16)])
+            else:
+                tokens[identificador] = token.replace("▁", " ").encode("utf-8")
+            continue
 
         contenido = bytearray()
         for caracter in token:

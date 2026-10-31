@@ -6,8 +6,6 @@
 !/Makefile
 !/pyproject.toml
 !/uv.lock
-!/.flake8
-!/.gitignore
 
 # Código Python del programa, incluidos futuros subpaquetes.
 !/src/

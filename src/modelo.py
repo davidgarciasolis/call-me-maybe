@@ -1,5 +1,7 @@
 """Inicialización del modelo y carga de su vocabulario."""
 
+import os
+from pathlib import Path
 from typing import Any
 
 from llm_sdk import Small_LLM_Model
@@ -8,12 +10,29 @@ from .error import ErrorCargaModelo, ErrorCargaVocabulario
 from .parseo import read_json
 
 
-def inicializar_modelo() -> Small_LLM_Model:
-    """Carga el modelo Qwen y su tokenizador."""
+def inicializar_modelo(
+    nombre: str = "Qwen/Qwen3-0.6B",
+) -> Small_LLM_Model:
+    """Carga el modelo elegido y reutiliza el login de Hugging Face."""
     modelo: Small_LLM_Model
+    cache: Path
+    cache_modelos: Path
+    token: Path
 
     try:
-        modelo = Small_LLM_Model(model_name="Qwen/Qwen3-0.6B")
+        cache = Path(os.environ.get(
+            "XDG_CACHE_HOME", str(Path.home() / ".cache"),
+        )) / "huggingface"
+        cache_modelos = Path(os.environ.get("HF_HOME", str(cache)))
+        token = cache / "token"
+        if (
+            "HF_TOKEN" not in os.environ
+            and "HF_TOKEN_PATH" not in os.environ
+            and token.is_file()
+            and not (cache_modelos / "token").is_file()
+        ):
+            os.environ.setdefault("HF_TOKEN", token.read_text().strip())
+        modelo = Small_LLM_Model(model_name=nombre)
     except Exception as error:
         raise ErrorCargaModelo(str(error)) from error
     return modelo
@@ -21,14 +40,14 @@ def inicializar_modelo() -> Small_LLM_Model:
 
 def cargar_vocabulario(modelo: Small_LLM_Model) -> dict[str, int]:
     """Lee y valida las correspondencias entre tokens e identificadores."""
-    ruta: str
+    tokenizador: Any
     vocabulario: Any
     token: str
     identificador: Any
 
     try:
-        ruta = modelo.get_path_to_vocab_file()
-        vocabulario = read_json(ruta)
+        tokenizador = read_json(modelo.get_path_to_tokenizer_file())
+        vocabulario = tokenizador["model"]["vocab"]
 
         if not isinstance(vocabulario, dict) or not vocabulario:
             raise ValueError(

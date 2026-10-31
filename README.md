@@ -7,6 +7,9 @@
 Call Me Maybe translates natural-language requests into function calls using
 `Qwen/Qwen3-0.6B` and the supplied `llm_sdk`. It selects a function and extracts
 its arguments; it never executes the function.
+`google/gemma-3-270m-it` is also available through `--model`.
+`openai-community/gpt2` is available for experiments using a plain-text
+completion prompt rather than a chat template.
 
 Constrained decoding masks invalid token logits with negative infinity before
 choosing the next token. The rules come from the input definitions, so the
@@ -43,6 +46,28 @@ uv run python -m src \
 
 Run `uv run python -m src --help` to list the options. Relative paths are
 resolved from the working directory. Results are ignored by Git.
+
+To use Gemma instead of the default Qwen model:
+
+```sh
+uv run python -m src --model google/gemma-3-270m-it
+# Or with the Makefile environment:
+make run ARGS="--model google/gemma-3-270m-it"
+```
+
+Gemma requires accepting its license on Hugging Face and logging in with
+`hf auth login` using an authorized account. If `HF_HOME` points to a separate
+cache without a token, the program can reuse the default Hugging Face login.
+Explicit `HF_TOKEN` and `HF_TOKEN_PATH` settings take precedence.
+
+To try GPT-2:
+
+```sh
+make run ARGS="--model openai-community/gpt2 --verbose"
+```
+
+GPT-2 is a base text-completion model, so valid constrained JSON does not
+establish correct function selection or argument extraction.
 
 ### Makefile
 
@@ -116,12 +141,14 @@ Ctrl+C returns 130. Argparse reports invalid options with status 2.
 ## Algorithm explanation
 
 1. Validate both input files and prepare the grammar stages once.
-2. Load Qwen once through the SDK's public interface.
-3. Read the vocabulary and tokenizer files. Invert the tokenizer's ByteLevel
-   mapping to obtain each token's original bytes. Exclude added tokens,
-   including special tokens, and check the mapping against SDK encode/decode.
-4. Build a Qwen chat prompt containing the function definitions and request.
-   Start the assistant response after an empty thinking block.
+2. Load the selected model once through the SDK's public interface.
+3. Read the vocabulary from `tokenizer.json`. For Qwen, invert the ByteLevel
+   mapping. For Gemma, replace its space marker and decode byte-fallback
+   tokens into bytes. Exclude added tokens, including special tokens, and
+   check the mapping against SDK encode/decode.
+4. Build a chat prompt for the selected model with the function definitions
+   and request. Qwen starts after an empty thinking block; Gemma uses its
+   user/model turn markers.
 5. Request next-token logits for the current context.
 6. For each candidate, decode its bytes with any pending UTF-8 bytes and check
    the resulting response prefix against the grammar. Invalid bytes, unknown
@@ -194,8 +221,21 @@ requested by the subject.
 
 ## Performance analysis
 
-Real-model measurements and their hardware context will be recorded here once
-validation finishes. The targets are 100% parseable and schema-compliant
+A real GPT-2 test with the same five functions and sum request correctly
+produced `fn_add_numbers` with `a: 2` and `b: 3` and saved valid JSON.
+Generation took 122.70 seconds for 23 tokens; total runtime was 137.48 seconds
+with two CPU threads. This is one successful example, not an accuracy study.
+
+One real Gemma test with the five sample function definitions correctly
+selected `fn_add_numbers` with arguments `a: 2` and `b: 3`, validated the JSON
+and saved the result. On this Linux CPU environment with two threads and
+7.2 GiB RAM, generation took 197.98 seconds for 19 tokens; total runtime was
+208.24 seconds. This single test does not establish overall accuracy or the
+five-minute target for the full set. A three-request trial was interrupted
+because of the slow generation.
+
+Broader real-model measurements remain pending. The targets are 100%
+parseable and schema-compliant
 results, at least 90% correct function/argument extraction, and less than five
 minutes for the evaluation prompts. These are separate measurements; passing
 unit checks alone does not establish them.

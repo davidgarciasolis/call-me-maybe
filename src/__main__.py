@@ -41,7 +41,7 @@ def leer_argumentos(argv: list[str] | None = None) -> argparse.Namespace:
     parser: argparse.ArgumentParser
 
     parser = argparse.ArgumentParser(
-        description="Traduce peticiones a llamadas de funciones con Qwen."
+        description="Traduce peticiones a llamadas de funciones con un LLM."
     )
     parser.add_argument(
         "--functions_definition",
@@ -54,6 +54,13 @@ def leer_argumentos(argv: list[str] | None = None) -> argparse.Namespace:
         "--output", default="data/output/function_calling_results.json",
     )
     parser.add_argument("--verbose", action="store_true")
+    parser.add_argument(
+        "--model", choices=[
+            "Qwen/Qwen3-0.6B", "google/gemma-3-270m-it",
+            "openai-community/gpt2",
+        ],
+        default="Qwen/Qwen3-0.6B",
+    )
     return parser.parse_args(argv)
 
 
@@ -126,6 +133,7 @@ def procesar_promts(
     tokens: dict[int, bytes],
     restricciones: Restricciones,
     verbose: bool = False,
+    nombre_modelo: str = "Qwen/Qwen3-0.6B",
 ) -> list[dict[str, Any]]:
     """Genera y valida las llamadas reutilizando el modelo, sin ejecutarlas."""
     promt: dict[str, Any]
@@ -145,7 +153,7 @@ def procesar_promts(
                 f"Petición {indice}/{len(promts)}: {promt['prompt']}",
                 flush=True,
             )
-            texto = construir_prompt(funciones, promt["prompt"])
+            texto = construir_prompt(funciones, promt["prompt"], nombre_modelo)
             ids = modelo.encode(texto).tolist()[0]
             respuesta = generar_respuesta(
                 modelo, ids, tokens, restricciones, verbose,
@@ -215,13 +223,14 @@ def main(argv: list[str] | None = None) -> int:
                 raise ValueError(
                     "Hay peticiones pero no hay funciones disponibles."
                 )
-            print("Cargando Qwen/Qwen3-0.6B...", flush=True)
-            modelo = inicializar_modelo()
+            print(f"Cargando {args.model}...", flush=True)
+            modelo = inicializar_modelo(args.model)
             vocabulario = cargar_vocabulario(modelo)
             tokens = preparar_tokens(modelo, vocabulario)
             verificar_tokens(modelo, tokens)
             resultados = procesar_promts(
                 modelo, funciones, promts, tokens, restricciones, args.verbose,
+                args.model,
             )
         guardar_resultados(args.output, resultados)
         print(

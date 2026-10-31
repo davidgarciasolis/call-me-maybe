@@ -7,6 +7,7 @@ from typing import Any
 def construir_prompt(
     funciones: list[dict[str, Any]],
     promt: str,
+    nombre_modelo: str = "Qwen/Qwen3-0.6B",
 ) -> str:
     """Combina las instrucciones, las funciones y la petición."""
     instrucciones: str
@@ -31,6 +32,22 @@ def construir_prompt(
     )
 
     funciones_json = json.dumps(funciones, separators=(",", ":"))
+
+    if nombre_modelo == "openai-community/gpt2":
+        texto = (
+            f"{instrucciones}\nAvailable functions:\n{funciones_json}\n"
+            f"User request: {promt}\nFunction call:\n"
+        )
+        return texto
+
+    if nombre_modelo == "google/gemma-3-270m-it":
+        texto = (
+            f"<bos><start_of_turn>user\n{instrucciones}\n"
+            f"Available functions:\n{funciones_json}\n"
+            f"User request:\n{promt}<end_of_turn>\n"
+            "<start_of_turn>model\n"
+        )
+        return texto
 
     texto = (
         f"<|im_start|>system\n{instrucciones}\n"

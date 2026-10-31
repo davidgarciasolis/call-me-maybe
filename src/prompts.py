@@ -14,16 +14,16 @@ def construir_prompt(
     texto: str
 
     instrucciones = (
-        "Choose one of the available functions for the user's request.\n"
-        "Extract its arguments from the request. Do not execute it.\n"
+        "Choose one of the available functions for the user's request."
+        "Extract its arguments from the request. Do not execute it."
         "Return only a JSON object with the keys "
-        '"name" and "parameters", in that order.\n'
+        '"name" and "parameters", in that order.'
         "Write compact JSON on a single line, without spaces outside "
-        "string values or leading or trailing whitespace.\n"
+        "string values or leading or trailing whitespace."
         "Escape special characters as required by JSON. "
-        "Do not add extra keys, explanations or Markdown.\n"
+        "Do not add extra keys, explanations or Markdown."
         "Use the exact function name and parameter names, "
-        "and respect the declared parameter types.\n"
+        "and respect the declared parameter types."
     )
 
     funciones_json = json.dumps(funciones)

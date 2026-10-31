@@ -18,6 +18,8 @@ def construir_prompt(
         "Extract its arguments from the request. Do not execute it.\n"
         "Return only a JSON object with the keys "
         '"name" and "parameters", in that order.\n'
+        "Write compact JSON on a single line, without spaces outside "
+        "string values or leading or trailing whitespace.\n"
         "Escape special characters as required by JSON. "
         "Do not add extra keys, explanations or Markdown.\n"
         "Use the exact function name and parameter names, "

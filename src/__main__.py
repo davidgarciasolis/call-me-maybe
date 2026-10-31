@@ -111,7 +111,7 @@ def procesar_promts(
                 "parameters": llamada["parameters"],
             }
             print("Resultado:")
-            print(json.dumps(resultado, ensure_ascii=False))
+            print(json.dumps(resultado, ensure_ascii=False, indent=4))
         except Exception as error:
             raise ErrorProcesamientoPromts(
                 f"Petición {indice}: {error}"

@@ -1,5 +1,6 @@
 """Validación de llamadas frente a las definiciones de funciones."""
 
+import json
 from math import isfinite
 from typing import Any
 
@@ -93,6 +94,138 @@ def prefijo_valor_valido(fragmento: str, tipo: str) -> bool:
         return prefijo_booleano_valido(fragmento)
 
     return False
+
+
+def valor_completo(fragmento: str, tipo: str) -> bool:
+    """Comprueba si una cadena, número o booleano está terminado."""
+    if not prefijo_valor_valido(fragmento, tipo):
+        return False
+
+    try:
+        json.loads(fragmento)
+    except ValueError:
+        return False
+
+    return True
+
+
+def preparar_etapas(funcion: dict[str, Any]) -> list[tuple[str, str]]:
+    """Construye las etapas de texto fijo y valores de una función.
+
+    Cada tupla contiene 'fijo' y el texto esperado, o el tipo de un valor
+    y un texto vacío. Conserva el orden de los parámetros de la definición.
+    """
+    etapas: list[tuple[str, str]]
+    parametro: str
+    definicion: dict[str, Any]
+    separador: str
+
+    etapas = [
+        ("fijo", '{"name":' + json.dumps(funcion["name"])
+         + ',"parameters":{'),
+    ]
+    separador = ""
+    for parametro, definicion in funcion["parameters"].items():
+        if definicion["type"] not in ("string", "number", "boolean"):
+            raise ValueError(
+                f"Tipo no admitido: '{definicion['type']}'."
+            )
+        etapas.append(("fijo", separador + json.dumps(parametro) + ":"))
+        etapas.append((definicion["type"], ""))
+        separador = ","
+    etapas.append(("fijo", "}}"))
+
+    return etapas
+
+
+def consumir_valor(respuesta: str, posicion: int) -> int:
+    """Localiza el final de un valor desde su posición inicial.
+
+    Se detiene antes de una coma o llave fuera de una cadena, o al final
+    del texto. Respeta comillas y escapes, pero no valida el valor.
+    """
+    caracter: str
+    en_cadena: bool
+    escape: bool
+
+    en_cadena = False
+    escape = False
+    while posicion < len(respuesta):
+        caracter = respuesta[posicion]
+        if en_cadena:
+            if escape:
+                escape = False
+            elif caracter == "\\":
+                escape = True
+            elif caracter == '"':
+                en_cadena = False
+        elif caracter in ",}":
+            break
+        elif caracter == '"':
+            en_cadena = True
+        posicion += 1
+
+    return posicion
+
+
+def estado_llamada(
+    respuesta: str,
+    funciones: list[dict[str, Any]],
+) -> str:
+    """Devuelve 'invalida', 'incompleta' o 'completa' para una llamada.
+
+    Revisa desde el principio JSON compacto, con name antes de parameters
+    y los parámetros en el orden de las definiciones. Recibe funciones
+    validadas por load_functions() y admite string, number y boolean.
+    """
+    funcion: dict[str, Any]
+    etapas: list[tuple[str, str]]
+    tipo: str
+    texto: str
+    fragmento: str
+    posicion: int
+    inicio: int
+    estado: str
+    hay_incompleta: bool
+
+    hay_incompleta = False
+    for funcion in funciones:
+        etapas = preparar_etapas(funcion)
+        posicion = 0
+        estado = "completa"
+        for tipo, texto in etapas:
+            if tipo == "fijo":
+                fragmento = respuesta[posicion:posicion + len(texto)]
+                if not texto.startswith(fragmento):
+                    estado = "invalida"
+                    break
+                if len(fragmento) < len(texto):
+                    estado = "incompleta"
+                    break
+                posicion += len(texto)
+                continue
+
+            inicio = posicion
+            posicion = consumir_valor(respuesta, posicion)
+            fragmento = respuesta[inicio:posicion]
+            if not prefijo_valor_valido(fragmento, tipo):
+                estado = "invalida"
+                break
+            if not valor_completo(fragmento, tipo):
+                if posicion == len(respuesta):
+                    estado = "incompleta"
+                else:
+                    estado = "invalida"
+                break
+
+        if estado == "completa" and posicion == len(respuesta):
+            return "completa"
+        if estado == "incompleta":
+            hay_incompleta = True
+
+    if hay_incompleta:
+        return "incompleta"
+    return "invalida"
 
 
 def validar_llamada(

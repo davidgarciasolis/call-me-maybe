@@ -4,12 +4,34 @@ import json
 from typing import Any, TextIO
 
 
+def objeto_sin_duplicados(pares: list[tuple[str, Any]]) -> dict[str, Any]:
+    """Construye un objeto JSON y rechaza las claves repetidas."""
+    objeto: dict[str, Any]
+    clave: str
+    valor: Any
+
+    objeto = {}
+    for clave, valor in pares:
+        if clave in objeto:
+            raise ValueError(f"Clave JSON duplicada: '{clave}'.")
+        objeto[clave] = valor
+    return objeto
+
+
+def rechazar_constante(texto: str) -> Any:
+    """Rechaza NaN e Infinity, que no forman parte del formato JSON."""
+    raise ValueError(f"Constante no válida en JSON: {texto}.")
+
+
 def read_json(ruta: str) -> Any:
     """Lee un archivo JSON y devuelve su contenido como datos de Python."""
     archivo: TextIO
 
     with open(ruta) as archivo:
-        return json.load(archivo)
+        return json.load(
+            archivo, object_pairs_hook=objeto_sin_duplicados,
+            parse_constant=rechazar_constante,
+        )
 
 
 def validar_campos(funcion: Any, contexto: str) -> str:
@@ -52,6 +74,11 @@ def validar_parametros(funcion: dict[str, Any], contexto: str) -> None:
             raise ValueError(
                 f"{contexto}: el parámetro '{parametro}' necesita un 'type' "
                 "de texto no vacío."
+            )
+        if tipo not in ("string", "number", "integer", "boolean", "null"):
+            raise ValueError(
+                f"{contexto}: tipo no admitido '{tipo}' "
+                f"para el parámetro '{parametro}'."
             )
 
 

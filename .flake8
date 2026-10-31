@@ -1,0 +1,4 @@
+[flake8]
+# The supplied SDK is an external dependency and must remain unchanged.
+extend-exclude = .venv,llm_sdk
+jobs = 1

@@ -6,6 +6,7 @@ SGOINFRE ?= $(HOME)/sgoinfre
 VENV_DIR ?= $(SGOINFRE)/venvs/call-me-maybe
 PYTHON ?= python3.10
 THREADS ?= 2
+ARGS ?=
 
 export OMP_NUM_THREADS := $(THREADS)
 export MKL_NUM_THREADS := $(THREADS)
@@ -27,7 +28,7 @@ install: prepare
 	uv sync --python "$(PYTHON)"
 
 run: prepare
-	uv run --python "$(PYTHON)" python -u -m src
+	uv run --python "$(PYTHON)" python -u -m src $(ARGS)
 
 debug: prepare
 	uv run --python "$(PYTHON)" python -m pdb -m src

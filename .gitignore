@@ -1,0 +1,29 @@
+# Ignorar todo salvo los archivos y carpetas permitidos debajo.
+*
+
+# Configuración y documentación del proyecto.
+!/README.md
+!/Makefile
+!/pyproject.toml
+!/uv.lock
+!/.flake8
+!/.gitignore
+
+# Código Python del programa, incluidos futuros subpaquetes.
+!/src/
+!/src/**/
+!/src/**/*.py
+
+# SDK proporcionado y sus archivos de dependencias.
+!/llm_sdk/
+!/llm_sdk/pyproject.toml
+!/llm_sdk/uv.lock
+!/llm_sdk/llm_sdk/
+!/llm_sdk/llm_sdk/**/
+!/llm_sdk/llm_sdk/**/*.py
+
+# Solo los JSON de entrada; las salidas quedan ignoradas.
+!/data/
+!/data/input/
+!/data/input/*.json
+

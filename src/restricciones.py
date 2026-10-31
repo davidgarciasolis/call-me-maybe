@@ -4,6 +4,9 @@ import json
 from math import isfinite
 from typing import Any
 
+Etapas = tuple[tuple[str, str], ...]
+Restricciones = tuple[Etapas, ...]
+
 
 def prefijo_cadena_valido(fragmento: str) -> bool:
     """Indica si el fragmento puede formar una cadena JSON válida.
@@ -11,11 +14,12 @@ def prefijo_cadena_valido(fragmento: str) -> bool:
     Recibe solo la cadena, incluida su comilla inicial, sin separadores
     ni espacios exteriores. Acepta el fragmento vacío, cadenas completas
     y cadenas incompletas, incluso con escapes pendientes de terminar.
-    Admite escapes básicos de JSON, pero rechaza los escapes Unicode.
+    Admite escapes básicos de JSON y escapes Unicode de cuatro dígitos.
     """
     indice: int
     caracter: str
     escape: bool
+    unicode_pendiente: int
 
     if not fragmento:
         return True
@@ -23,10 +27,17 @@ def prefijo_cadena_valido(fragmento: str) -> bool:
         return False
 
     escape = False
+    unicode_pendiente = 0
 
     for indice, caracter in enumerate(fragmento[1:], start=1):
-        if escape:
-            if caracter not in '"\\/bfnrt':
+        if unicode_pendiente:
+            if caracter not in "0123456789abcdefABCDEF":
+                return False
+            unicode_pendiente -= 1
+        elif escape:
+            if caracter == "u":
+                unicode_pendiente = 4
+            elif caracter not in '"\\/bfnrt':
                 return False
             escape = False
         elif caracter == "\\":
@@ -90,14 +101,20 @@ def prefijo_valor_valido(fragmento: str, tipo: str) -> bool:
     if tipo == "number":
         return prefijo_numero_valido(fragmento)
 
+    if tipo == "integer":
+        return "." not in fragmento and prefijo_numero_valido(fragmento)
+
     if tipo == "boolean":
         return prefijo_booleano_valido(fragmento)
+
+    if tipo == "null":
+        return "null".startswith(fragmento)
 
     return False
 
 
 def valor_completo(fragmento: str, tipo: str) -> bool:
-    """Comprueba si una cadena, número o booleano está terminado."""
+    """Comprueba si un valor del tipo declarado está terminado."""
     if not prefijo_valor_valido(fragmento, tipo):
         return False
 
@@ -126,7 +143,9 @@ def preparar_etapas(funcion: dict[str, Any]) -> list[tuple[str, str]]:
     ]
     separador = ""
     for parametro, definicion in funcion["parameters"].items():
-        if definicion["type"] not in ("string", "number", "boolean"):
+        if definicion["type"] not in (
+            "string", "number", "integer", "boolean", "null",
+        ):
             raise ValueError(
                 f"Tipo no admitido: '{definicion['type']}'."
             )
@@ -168,64 +187,72 @@ def consumir_valor(respuesta: str, posicion: int) -> int:
     return posicion
 
 
-def estado_llamada(
-    respuesta: str,
+def preparar_restricciones(
     funciones: list[dict[str, Any]],
-) -> str:
-    """Devuelve 'invalida', 'incompleta' o 'completa' para una llamada.
-
-    Revisa desde el principio JSON compacto, con name antes de parameters
-    y los parámetros en el orden de las definiciones. Recibe funciones
-    validadas por load_functions() y admite string, number y boolean.
-    """
+) -> Restricciones:
+    """Prepara una vez las etapas de todas las funciones disponibles."""
     funcion: dict[str, Any]
-    etapas: list[tuple[str, str]]
+    restricciones: list[Etapas]
+
+    restricciones = []
+    for funcion in funciones:
+        restricciones.append(tuple(preparar_etapas(funcion)))
+    return tuple(restricciones)
+
+
+def revisar_etapas(respuesta: str, etapas: Etapas) -> tuple[str, str, str]:
+    """Devuelve el estado y el tipo y fragmento del valor pendiente."""
     tipo: str
     texto: str
     fragmento: str
     posicion: int
     inicio: int
+
+    posicion = 0
+    for tipo, texto in etapas:
+        if tipo == "fijo":
+            fragmento = respuesta[posicion:posicion + len(texto)]
+            if not texto.startswith(fragmento):
+                return "invalida", "", ""
+            if len(fragmento) < len(texto):
+                return "incompleta", "fijo", fragmento
+            posicion += len(texto)
+            continue
+
+        inicio = posicion
+        posicion = consumir_valor(respuesta, posicion)
+        fragmento = respuesta[inicio:posicion]
+        if not prefijo_valor_valido(fragmento, tipo):
+            return "invalida", "", ""
+        if not valor_completo(fragmento, tipo):
+            if posicion == len(respuesta):
+                return "incompleta", tipo, fragmento
+            return "invalida", "", ""
+
+    if posicion == len(respuesta):
+        return "completa", "", ""
+    return "invalida", "", ""
+
+
+def estado_restricciones(respuesta: str, restricciones: Restricciones) -> str:
+    """Comprueba una llamada con las etapas ya preparadas."""
+    etapas: Etapas
     estado: str
-    hay_incompleta: bool
+    incompleta: bool
 
-    hay_incompleta = False
-    for funcion in funciones:
-        etapas = preparar_etapas(funcion)
-        posicion = 0
-        estado = "completa"
-        for tipo, texto in etapas:
-            if tipo == "fijo":
-                fragmento = respuesta[posicion:posicion + len(texto)]
-                if not texto.startswith(fragmento):
-                    estado = "invalida"
-                    break
-                if len(fragmento) < len(texto):
-                    estado = "incompleta"
-                    break
-                posicion += len(texto)
-                continue
-
-            inicio = posicion
-            posicion = consumir_valor(respuesta, posicion)
-            fragmento = respuesta[inicio:posicion]
-            if not prefijo_valor_valido(fragmento, tipo):
-                estado = "invalida"
-                break
-            if not valor_completo(fragmento, tipo):
-                if posicion == len(respuesta):
-                    estado = "incompleta"
-                else:
-                    estado = "invalida"
-                break
-
-        if estado == "completa" and posicion == len(respuesta):
-            return "completa"
+    incompleta = False
+    for etapas in restricciones:
+        estado = revisar_etapas(respuesta, etapas)[0]
+        if estado == "completa":
+            return estado
         if estado == "incompleta":
-            hay_incompleta = True
+            incompleta = True
+    return "incompleta" if incompleta else "invalida"
 
-    if hay_incompleta:
-        return "incompleta"
-    return "invalida"
+
+def estado_llamada(respuesta: str, funciones: list[dict[str, Any]]) -> str:
+    """Comprueba una llamada sin reutilizar las etapas entre consultas."""
+    return estado_restricciones(respuesta, preparar_restricciones(funciones))
 
 
 def validar_llamada(
@@ -235,8 +262,7 @@ def validar_llamada(
     """Devuelve una llamada válida o lanza ValueError con el motivo.
 
     Recibe el objeto obtenido con json.loads() y las definiciones ya
-    validadas por load_functions(). Admite parámetros string, number,
-    y boolean, sin convertir sus valores.
+    validadas por load_functions(). No convierte los valores recibidos.
     """
     nombre: str
     funcion: dict[str, Any]
@@ -289,6 +315,10 @@ def validar_llamada(
                     valido = False
             elif tipo == "boolean":
                 valido = type(valor) is bool
+            elif tipo == "integer":
+                valido = type(valor) is int
+            elif tipo == "null":
+                valido = valor is None
             else:
                 raise ValueError(
                     f"{nombre}: tipo no admitido '{tipo}' "

@@ -11,7 +11,6 @@ from .parseo import read_json
 def inicializar_modelo() -> Small_LLM_Model:
     """Carga el modelo Qwen y su tokenizador."""
     modelo: Small_LLM_Model
-    error: Exception
 
     try:
         modelo = Small_LLM_Model(model_name="Qwen/Qwen3-0.6B")
@@ -26,14 +25,15 @@ def cargar_vocabulario(modelo: Small_LLM_Model) -> dict[str, int]:
     vocabulario: Any
     token: str
     identificador: Any
-    error: Exception
 
     try:
         ruta = modelo.get_path_to_vocab_file()
         vocabulario = read_json(ruta)
 
         if not isinstance(vocabulario, dict) or not vocabulario:
-            raise ValueError("El vocabulario debe ser un objeto JSON no vacío.")
+            raise ValueError(
+                "El vocabulario debe ser un objeto JSON no vacío."
+            )
 
         for token, identificador in vocabulario.items():
             if type(identificador) is not int or identificador < 0:

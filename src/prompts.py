@@ -24,15 +24,19 @@ def construir_prompt(
         "Do not add extra keys, explanations or Markdown.\n"
         "Use the exact function name and parameter names, "
         "and respect the declared parameter types.\n"
+        "Write every parameter in the order shown in its definition.\n"
+        "Copy input strings as arguments; do not reverse, greet, "
+        "calculate or otherwise execute the requested operation.\n"
+        "For regex replacement, provide a regex pattern, not its result.\n"
     )
 
-    funciones_json = json.dumps(funciones)
+    funciones_json = json.dumps(funciones, separators=(",", ":"))
 
     texto = (
-        f"{instrucciones}\n"
-        f"Available functions:\n{funciones_json}\n\n"
-        f"User request:\n{promt}\n\n"
-        "Response:\n"
+        f"<|im_start|>system\n{instrucciones}\n"
+        f"Available functions:\n{funciones_json}<|im_end|>\n"
+        f"<|im_start|>user\n{promt}<|im_end|>\n"
+        "<|im_start|>assistant\n<think>\n\n</think>\n\n"
     )
 
     return texto

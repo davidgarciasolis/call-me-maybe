@@ -1,0 +1,46 @@
+# Conservar solo los archivos necesarios para ejecutar y entregar el proyecto.
+/*
+!/.gitignore
+!/Makefile
+!/pyproject.toml
+!/uv.lock
+!/README.md
+!/LICENSE
+!/LICENSE.*
+!/src/
+!/llm_sdk/
+!/data/
+
+# Incluir las entradas de ejemplo, pero no los resultados generados.
+/data/*
+!/data/input/
+
+# Archivos generados por Python y herramientas de desarrollo.
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.cache/
+.coverage
+.coverage.*
+htmlcov/
+build/
+dist/
+
+# Configuración local, credenciales y archivos del editor.
+.env
+.env.*
+.aws/
+.codex/
+.agents/
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db

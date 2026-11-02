@@ -157,6 +157,8 @@ def main() -> int:
     tokenizador: Any
     tokens_permitidos: set[int]
     resultados: list[dict[str, Any]]
+    inicio: float
+    duracion: float
     error: Exception
 
     try:
@@ -178,11 +180,18 @@ def main() -> int:
         tokens_permitidos = preparar_tokens(vocabulario, tokenizador)
         print(f"Modelo preparado. Vocabulario: {len(vocabulario)} tokens.")
 
+        inicio = perf_counter()
         resultados = procesar_promts(
             modelo, funciones, promts, tokens_permitidos
         )
+        duracion = perf_counter() - inicio
         guardar_resultados(
             "data/output/function_calling_results.json", resultados
+        )
+        print(
+            f"Tiempo total de generación de todas las respuestas: "
+            f"{duracion:.2f} s.",
+            flush=True,
         )
     except ErrorCargaModelo as error:
         print(f"No se pudo cargar el modelo: {error}", file=sys.stderr)

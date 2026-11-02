@@ -13,6 +13,7 @@ from .modelo import cargar_vocabulario, inicializar_modelo
 from .parseo import load_functions, load_prompts, read_json
 from .prompts import construir_prompt
 from .restricciones import validar_llamada
+from .salida import guardar_resultados
 
 
 def generar_respuesta(
@@ -98,8 +99,8 @@ def procesar_promts(
     funciones: list[dict[str, Any]],
     promts: list[dict[str, Any]],
     tokens_permitidos: set[int],
-) -> None:
-    """Genera una respuesta para cada petición con el mismo modelo."""
+) -> list[dict[str, Any]]:
+    """Genera y devuelve los resultados reutilizando el mismo modelo."""
     promt: dict[str, Any]
     indice: int
     texto: str
@@ -109,8 +110,10 @@ def procesar_promts(
     respuesta: str
     llamada: dict[str, Any]
     resultado: dict[str, Any]
+    resultados: list[dict[str, Any]]
     error: Exception
 
+    resultados = []
     print("Prompts preparados para el modelo:")
     for indice, promt in enumerate(promts, start=1):
         try:
@@ -134,6 +137,7 @@ def procesar_promts(
                 "name": llamada["name"],
                 "parameters": llamada["parameters"],
             }
+            resultados.append(resultado)
             print("Resultado:")
             print(json.dumps(resultado, ensure_ascii=False, indent=4))
         except Exception as error:
@@ -141,15 +145,18 @@ def procesar_promts(
                 f"Petición {indice}: {error}"
             ) from error
 
+    return resultados
+
 
 def main() -> int:
-    """Lee las entradas y muestra las llamadas generadas con restricciones."""
+    """Lee las entradas y guarda las llamadas generadas con restricciones."""
     funciones: list[dict[str, Any]]
     promts: list[dict[str, Any]]
     modelo: Any
     vocabulario: dict[str, int]
     tokenizador: Any
     tokens_permitidos: set[int]
+    resultados: list[dict[str, Any]]
     error: Exception
 
     try:
@@ -171,7 +178,12 @@ def main() -> int:
         tokens_permitidos = preparar_tokens(vocabulario, tokenizador)
         print(f"Modelo preparado. Vocabulario: {len(vocabulario)} tokens.")
 
-        procesar_promts(modelo, funciones, promts, tokens_permitidos)
+        resultados = procesar_promts(
+            modelo, funciones, promts, tokens_permitidos
+        )
+        guardar_resultados(
+            "data/output/function_calling_results.json", resultados
+        )
     except ErrorCargaModelo as error:
         print(f"No se pudo cargar el modelo: {error}", file=sys.stderr)
         return 1
@@ -182,7 +194,7 @@ def main() -> int:
         print(f"No se pudieron procesar los prompts: {error}", file=sys.stderr)
         return 1
     except OSError as error:
-        print(f"No se pudo acceder a un archivo: {error}", file=sys.stderr)
+        print(f"No se pudo leer o guardar un archivo: {error}", file=sys.stderr)
         return 1
     except ValueError as error:
         print(f"Contenido o valor no válido: {error}", file=sys.stderr)

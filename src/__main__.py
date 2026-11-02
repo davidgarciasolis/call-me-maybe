@@ -3,19 +3,25 @@ import sys
 from time import perf_counter
 from typing import Any
 
+from .decodificacion import enmascarar_logits, preparar_tokens
 from .error import (
     ErrorCargaModelo,
     ErrorCargaVocabulario,
     ErrorProcesamientoPromts,
 )
 from .modelo import cargar_vocabulario, inicializar_modelo
-from .parseo import load_functions, load_prompts
+from .parseo import load_functions, load_prompts, read_json
 from .prompts import construir_prompt
 from .restricciones import validar_llamada
 
 
-def generar_respuesta(modelo: Any, ids: list[int]) -> str:
-    """Genera texto sin restricciones y añade sus tokens a los IDs recibidos."""
+def generar_respuesta(
+    modelo: Any,
+    ids: list[int],
+    funciones: list[dict[str, Any]],
+    tokens_permitidos: set[int],
+) -> str:
+    """Genera con máscara y termina cuando json.loads() obtiene un objeto."""
     logits: list[float]
     ids_generados: list[int]
     siguiente_id: int
@@ -26,11 +32,12 @@ def generar_respuesta(modelo: Any, ids: list[int]) -> str:
     resultado: Any
     inicio: float
     duracion: float
+    cantidad: int
 
     paso = 0
     ids_generados = []
     resultado = None
-    print("Generando una vista previa sin restricciones...", flush=True)
+    print("Generando con restricciones...", flush=True)
 
     while not isinstance(resultado, dict):
         print(
@@ -50,6 +57,12 @@ def generar_respuesta(modelo: Any, ids: list[int]) -> str:
 
         if not logits:
             raise ValueError("El modelo no ha devuelto logits.")
+
+        cantidad = enmascarar_logits(
+            logits, modelo, ids_generados, tokens_permitidos, funciones
+        )
+        if cantidad == 0:
+            raise ValueError("No quedan tokens permitidos.")
 
         siguiente_id = 0
         for identificador, logit in enumerate(logits):
@@ -77,8 +90,9 @@ def procesar_promts(
     modelo: Any,
     funciones: list[dict[str, Any]],
     promts: list[dict[str, Any]],
+    tokens_permitidos: set[int],
 ) -> None:
-    """Prepara y genera una respuesta para cada petición con el mismo modelo."""
+    """Genera una respuesta para cada petición con el mismo modelo."""
     promt: dict[str, Any]
     indice: int
     texto: str
@@ -104,7 +118,9 @@ def procesar_promts(
             print("IDs del prompt:")
             print(ids)
 
-            respuesta = generar_respuesta(modelo, ids)
+            respuesta = generar_respuesta(
+                modelo, ids, funciones, tokens_permitidos
+            )
             llamada = validar_llamada(json.loads(respuesta), funciones)
             resultado = {
                 "prompt": promt["prompt"],
@@ -120,11 +136,13 @@ def procesar_promts(
 
 
 def main() -> int:
-    """Lee las entradas y muestra una generación de prueba sin restricciones."""
+    """Lee las entradas y muestra las llamadas generadas con restricciones."""
     funciones: list[dict[str, Any]]
     promts: list[dict[str, Any]]
     modelo: Any
     vocabulario: dict[str, int]
+    tokenizador: Any
+    tokens_permitidos: set[int]
     error: Exception
 
     try:
@@ -140,9 +158,13 @@ def main() -> int:
         print("Cargando el modelo...")
         modelo = inicializar_modelo()
         vocabulario = cargar_vocabulario(modelo)
+        tokenizador = read_json(modelo.get_path_to_tokenizer_file())
+        if not isinstance(tokenizador, dict):
+            raise ValueError("tokenizer.json debe contener un objeto.")
+        tokens_permitidos = preparar_tokens(vocabulario, tokenizador)
         print(f"Modelo preparado. Vocabulario: {len(vocabulario)} tokens.")
 
-        procesar_promts(modelo, funciones, promts)
+        procesar_promts(modelo, funciones, promts, tokens_permitidos)
     except ErrorCargaModelo as error:
         print(f"No se pudo cargar el modelo: {error}", file=sys.stderr)
         return 1

@@ -58,8 +58,15 @@ def generar_respuesta(
         if not logits:
             raise ValueError("El modelo no ha devuelto logits.")
 
+        inicio = perf_counter()
         cantidad = enmascarar_logits(
             logits, modelo, ids_generados, tokens_permitidos, funciones
+        )
+        duracion = perf_counter() - inicio
+        print(
+            f"Restricciones aplicadas en {duracion:.2f} s. "
+            f"Tokens permitidos: {cantidad}.",
+            flush=True,
         )
         if cantidad == 0:
             raise ValueError("No quedan tokens permitidos.")

@@ -3,7 +3,9 @@ import sys
 from time import perf_counter
 from typing import Any
 
-from .decodificacion import enmascarar_logits, preparar_tokens
+from .decodificacion import (
+    comprobar_tokens, enmascarar_logits, preparar_tokens,
+)
 from .error import (
     ErrorCargaModelo,
     ErrorCargaVocabulario,
@@ -20,7 +22,7 @@ def generar_respuesta(
     modelo: Any,
     ids: list[int],
     funciones: list[dict[str, Any]],
-    tokens_permitidos: set[int],
+    tokens_permitidos: dict[int, bytes],
 ) -> str:
     """Genera con máscara y termina cuando json.loads() obtiene un objeto."""
     logits: list[float]
@@ -61,7 +63,7 @@ def generar_respuesta(
 
         inicio = perf_counter()
         cantidad = enmascarar_logits(
-            logits, modelo, ids_generados, tokens_permitidos, funciones
+            logits, ids_generados, tokens_permitidos, funciones
         )
         duracion = perf_counter() - inicio
         print(
@@ -90,7 +92,11 @@ def generar_respuesta(
             continue
 
     print("JSON completo. Generación terminada.", flush=True)
-    respuesta = modelo.decode(ids_generados)
+    respuesta = b"".join(
+        tokens_permitidos[token] for token in ids_generados
+    ).decode("utf-8")
+    if respuesta != modelo.decode(ids_generados):
+        raise ValueError("La respuesta no coincide con la decodificación SDK.")
     return respuesta
 
 
@@ -98,7 +104,7 @@ def procesar_promts(
     modelo: Any,
     funciones: list[dict[str, Any]],
     promts: list[dict[str, Any]],
-    tokens_permitidos: set[int],
+    tokens_permitidos: dict[int, bytes],
 ) -> list[dict[str, Any]]:
     """Genera y devuelve los resultados reutilizando el mismo modelo."""
     promt: dict[str, Any]
@@ -155,7 +161,7 @@ def main() -> int:
     modelo: Any
     vocabulario: dict[str, int]
     tokenizador: Any
-    tokens_permitidos: set[int]
+    tokens_permitidos: dict[int, bytes]
     resultados: list[dict[str, Any]]
     inicio: float
     duracion: float
@@ -178,6 +184,7 @@ def main() -> int:
         if not isinstance(tokenizador, dict):
             raise ValueError("tokenizer.json debe contener un objeto.")
         tokens_permitidos = preparar_tokens(vocabulario, tokenizador)
+        comprobar_tokens(modelo, tokens_permitidos)
         print(f"Modelo preparado. Vocabulario: {len(vocabulario)} tokens.")
 
         inicio = perf_counter()

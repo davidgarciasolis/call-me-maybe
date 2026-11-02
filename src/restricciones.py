@@ -178,7 +178,17 @@ def estado_llamada(
     y los parámetros en el orden de las definiciones. Recibe funciones
     validadas por load_functions() y admite string, number y boolean.
     """
-    funcion: dict[str, Any]
+    etapas_funciones: list[list[tuple[str, str]]]
+
+    etapas_funciones = [preparar_etapas(funcion) for funcion in funciones]
+    return estado_etapas(respuesta, etapas_funciones)
+
+
+def estado_etapas(
+    respuesta: str,
+    etapas_funciones: list[list[tuple[str, str]]],
+) -> str:
+    """Valida una respuesta reutilizando las etapas ya preparadas."""
     etapas: list[tuple[str, str]]
     tipo: str
     texto: str
@@ -189,8 +199,7 @@ def estado_llamada(
     hay_incompleta: bool
 
     hay_incompleta = False
-    for funcion in funciones:
-        etapas = preparar_etapas(funcion)
+    for etapas in etapas_funciones:
         posicion = 0
         estado = "completa"
         for tipo, texto in etapas:
@@ -226,6 +235,43 @@ def estado_llamada(
     if hay_incompleta:
         return "incompleta"
     return "invalida"
+
+
+def cadena_abierta(
+    respuesta: str,
+    etapas_funciones: list[list[tuple[str, str]]],
+) -> bool:
+    """Indica si se puede añadir texto normal a un argumento de cadena."""
+    etapas: list[tuple[str, str]]
+    tipo: str
+    texto: str
+    posicion: int
+    fin: int
+    fragmento: str
+    barras: int
+
+    for etapas in etapas_funciones:
+        posicion = 0
+        for tipo, texto in etapas:
+            if tipo == "fijo":
+                if not respuesta.startswith(texto, posicion):
+                    break
+                posicion += len(texto)
+                continue
+
+            fin = consumir_valor(respuesta, posicion)
+            fragmento = respuesta[posicion:fin]
+            if not prefijo_valor_valido(fragmento, tipo):
+                break
+            if not valor_completo(fragmento, tipo):
+                barras = len(fragmento) - len(fragmento.rstrip("\\"))
+                if (tipo == "string" and fragmento.startswith('"')
+                        and fin == len(respuesta) and barras % 2 == 0):
+                    return True
+                break
+            posicion = fin
+
+    return False
 
 
 def validar_llamada(

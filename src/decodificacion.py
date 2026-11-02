@@ -1,33 +1,52 @@
-"""Enmascarado de logits mediante el texto devuelto por el SDK."""
+"""Enmascarado de logits reutilizando los bytes del vocabulario."""
 
+from codecs import utf_8_decode
 from math import isfinite
+import re
 from typing import Any
 
-from .restricciones import estado_llamada
+from .restricciones import cadena_abierta, estado_etapas, preparar_etapas
 
 
 def preparar_tokens(
     vocabulario: dict[str, int],
     tokenizador: dict[str, Any],
-) -> set[int]:
-    """Obtiene los IDs ordinarios, excluyendo tokens añadidos y vacíos.
+) -> dict[int, bytes]:
+    """Prepara una vez los bytes ByteLevel y excluye tokens añadidos.
 
-    Recibe el vocabulario validado y el contenido de tokenizer.json.
-    Lanza ValueError si el vocabulario no coincide o si los datos de los
-    tokens añadidos son incorrectos. La decodificación se delega al SDK.
+    Rechaza decoders desconocidos para evitar interpretar mal el vocabulario.
     """
     modelo: Any
     anadidos: Any
     anadido: Any
     id_anadido: Any
     excluidos: set[int]
-    tokens: set[int]
+    tokens: dict[int, bytes]
+    decoder: Any
+    valores: list[int]
+    mapa: dict[str, int]
+    valor: int
+    siguiente: int
     token: str
     identificador: int
 
     modelo = tokenizador.get("model")
     if not isinstance(modelo, dict) or modelo.get("vocab") != vocabulario:
         raise ValueError("El vocabulario no coincide con tokenizer.json.")
+
+    decoder = tokenizador.get("decoder")
+    if not isinstance(decoder, dict) or decoder.get("type") != "ByteLevel":
+        raise ValueError("La máscara optimizada requiere decoder ByteLevel.")
+
+    # ByteLevel representa los 256 bytes mediante caracteres imprimibles.
+    valores = list(range(33, 127)) + list(range(161, 173))
+    valores += list(range(174, 256))
+    mapa = {chr(valor): valor for valor in valores}
+    siguiente = 256
+    for valor in range(256):
+        if valor not in valores:
+            mapa[chr(siguiente)] = valor
+            siguiente += 1
 
     anadidos = tokenizador.get("added_tokens", [])
     if not isinstance(anadidos, list):
@@ -42,62 +61,93 @@ def preparar_tokens(
             raise ValueError("Cada token añadido necesita un ID no negativo.")
         excluidos.add(id_anadido)
 
-    tokens = set()
+    tokens = {}
     for token, identificador in vocabulario.items():
         if token and identificador not in excluidos:
-            tokens.add(identificador)
+            try:
+                tokens[identificador] = bytes(mapa[letra] for letra in token)
+            except KeyError as error:
+                raise ValueError(
+                    f"Token ByteLevel no válido: {token!r}."
+                ) from error
 
     return tokens
 
 
-def candidato_valido(
-    modelo: Any,
-    ids_generados: list[int],
-    identificador: int,
-    funciones: list[dict[str, Any]],
-) -> bool:
-    """Valida el texto de la respuesta completa con el token candidato.
+def comprobar_tokens(modelo: Any, tokens: dict[int, bytes]) -> None:
+    """Contrasta los bytes preparados con encode y decode públicos del SDK."""
+    muestra: str
+    ids: list[int]
+    datos: bytes
 
-    Recibe solo IDs de la respuesta, sin los del prompt. Decodifica juntos
-    todos los tokens para respetar los caracteres divididos entre ellos.
-    No modifica los IDs recibidos. La validación se realiza sobre el texto
-    del SDK, que puede contener caracteres de reemplazo U+FFFD.
-    """
-    candidata: str
-
-    candidata = modelo.decode(ids_generados + [identificador])
-    if estado_llamada(candidata, funciones) == "invalida":
-        return False
-    return True
+    muestra = '{"texto":"María 😀", "escape":"a\\nb"}'
+    ids = modelo.encode(muestra).tolist()[0]
+    datos = b"".join(tokens[identificador] for identificador in ids)
+    if datos.decode("utf-8") != muestra or modelo.decode(ids) != muestra:
+        raise ValueError("Los bytes del vocabulario no coinciden con el SDK.")
 
 
 def enmascarar_logits(
     logits: list[float],
-    modelo: Any,
     ids_generados: list[int],
-    tokens_permitidos: set[int],
+    tokens_permitidos: dict[int, bytes],
     funciones: list[dict[str, Any]],
 ) -> int:
-    """Pone en -inf los logits inválidos y cuenta los permitidos.
+    """Bloquea candidatos inválidos sin decodificarlos mediante el SDK.
 
-    Bloquea IDs excluidos, logits no finitos y textos que incumplen la
-    gramática. Recibe funciones validadas con los tipos de estado_llamada().
-    Modifica logits, pero conserva ids_generados y tokens_permitidos.
-    Si devuelve cero, el llamador debe gestionar el error antes de elegir.
-    Los errores del SDK se propagan al llamador.
+    Reutiliza las etapas y la validez del primer carácter en cada paso.
+    Conserva UTF-8 incompleto solo donde cabe contenido de una cadena.
+    Modifica todos los logits inválidos antes de seleccionar el siguiente.
     """
     identificador: int
     logit: float
     permitido: bool
     cantidad: int
+    datos: bytes
+    pendientes: bytes
+    fragmento: bytes
+    respuesta: str
+    texto: str
+    consumidos: int
+    etapas: list[list[tuple[str, str]]]
+    inicios: dict[str, bool]
+    primero: str
+    cadena_libre: bool
+    texto_normal: re.Pattern[str]
 
+    datos = b"".join(tokens_permitidos[token] for token in ids_generados)
+    respuesta, consumidos = utf_8_decode(datos, "strict", False)
+    pendientes = datos[consumidos:]
+    etapas = [preparar_etapas(funcion) for funcion in funciones]
+    cadena_libre = cadena_abierta(respuesta, etapas)
+    texto_normal = re.compile(r'[^"\\\x00-\x1f]+')
+    inicios = {}
     cantidad = 0
     for identificador, logit in enumerate(logits):
         permitido = False
-        if isfinite(logit) and identificador in tokens_permitidos:
-            permitido = candidato_valido(
-                modelo, ids_generados, identificador, funciones
-            )
+        fragmento = tokens_permitidos.get(identificador, b"")
+        if isfinite(logit) and fragmento:
+            try:
+                datos = pendientes + fragmento
+                texto, consumidos = utf_8_decode(datos, "strict", False)
+                if consumidos < len(datos):
+                    # Un carácter de prueba exige estar dentro de una cadena
+                    # libre, fuera de escapes y del texto fijo de la llamada.
+                    texto += "¡"
+                if cadena_libre and texto_normal.fullmatch(texto):
+                    permitido = True
+                elif texto:
+                    primero = texto[0]
+                    if primero not in inicios:
+                        inicios[primero] = estado_etapas(
+                            respuesta + primero, etapas
+                        ) != "invalida"
+                    if inicios[primero]:
+                        permitido = estado_etapas(
+                            respuesta + texto, etapas
+                        ) != "invalida"
+            except UnicodeDecodeError:
+                permitido = False
 
         if permitido:
             cantidad += 1

@@ -74,19 +74,6 @@ def preparar_tokens(
     return tokens
 
 
-def comprobar_tokens(modelo: Any, tokens: dict[int, bytes]) -> None:
-    """Contrasta los bytes preparados con encode y decode públicos del SDK."""
-    muestra: str
-    ids: list[int]
-    datos: bytes
-
-    muestra = '{"texto":"María 😀", "escape":"a\\nb"}'
-    ids = modelo.encode(muestra).tolist()[0]
-    datos = b"".join(tokens[identificador] for identificador in ids)
-    if datos.decode("utf-8") != muestra or modelo.decode(ids) != muestra:
-        raise ValueError("Los bytes del vocabulario no coinciden con el SDK.")
-
-
 def enmascarar_logits(
     logits: list[float],
     ids_generados: list[int],

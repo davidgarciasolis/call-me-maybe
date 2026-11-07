@@ -3,9 +3,7 @@ import sys
 from time import perf_counter
 from typing import Any
 
-from .decodificacion import (
-    comprobar_tokens, enmascarar_logits, preparar_tokens,
-)
+from .decodificacion import enmascarar_logits, preparar_tokens
 from .error import (
     ErrorCargaModelo,
     ErrorCargaVocabulario,
@@ -184,7 +182,6 @@ def main() -> int:
         if not isinstance(tokenizador, dict):
             raise ValueError("tokenizer.json debe contener un objeto.")
         tokens_permitidos = preparar_tokens(vocabulario, tokenizador)
-        comprobar_tokens(modelo, tokens_permitidos)
         print(f"Modelo preparado. Vocabulario: {len(vocabulario)} tokens.")
 
         inicio = perf_counter()

@@ -6,38 +6,51 @@ from typing import Any
 from .restricciones import estado_etapas, preparar_etapas
 
 
+def preparar_tokens(
+    modelo: Any,
+    vocabulario: dict[str, int],
+) -> dict[int, str]:
+    """Decodifica una vez cada ID y descarta texto vacío o con '�'."""
+    tokens: dict[int, str]
+    identificador: int
+    texto: str
+
+    tokens = {}
+    for identificador in set(vocabulario.values()):
+        texto = modelo.decode([identificador])
+        if texto and "�" not in texto:
+            tokens[identificador] = texto
+    return tokens
+
+
 def enmascarar_logits(
     logits: list[float],
-    modelo: Any,
-    ids_generados: list[int],
-    tokens_permitidos: set[int],
+    respuesta: str,
+    tokens_decodificados: dict[int, str],
     funciones: list[dict[str, Any]],
 ) -> int:
     """Bloquea los tokens cuyo texto incumple las restricciones.
 
-    Decodifica cada candidato junto con la respuesta generada. Rechaza
-    texto vacío, caracteres incompletos representados por '�' y candidatos
-    que cambien el texto anterior. Modifica los logits antes de seleccionar.
+    Concatena la respuesta con el texto guardado de cada token, sin llamar
+    al SDK. Modifica los logits antes de seleccionar el siguiente token.
     """
     identificador: int
     logit: float
-    respuesta: str
+    fragmento: str
     texto: str
     permitido: bool
     cantidad: int
     etapas: list[list[tuple[str, str]]]
 
-    respuesta = modelo.decode(ids_generados)
     etapas = [preparar_etapas(funcion) for funcion in funciones]
     cantidad = 0
 
     for identificador, logit in enumerate(logits):
         permitido = False
-        if isfinite(logit) and identificador in tokens_permitidos:
-            texto = modelo.decode(ids_generados + [identificador])
-            if (texto.startswith(respuesta) and len(texto) > len(respuesta)
-                    and "�" not in texto):
-                permitido = estado_etapas(texto, etapas) != "invalida"
+        fragmento = tokens_decodificados.get(identificador, "")
+        if isfinite(logit) and fragmento:
+            texto = respuesta + fragmento
+            permitido = estado_etapas(texto, etapas) != "invalida"
 
         if permitido:
             cantidad += 1

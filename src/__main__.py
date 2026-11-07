@@ -3,7 +3,7 @@ import sys
 from time import perf_counter
 from typing import Any
 
-from .decodificacion import enmascarar_logits
+from .decodificacion import enmascarar_logits, preparar_tokens
 from .error import (
     ErrorCargaModelo,
     ErrorCargaVocabulario,
@@ -20,7 +20,7 @@ def generar_respuesta(
     modelo: Any,
     ids: list[int],
     funciones: list[dict[str, Any]],
-    tokens_permitidos: set[int],
+    tokens_decodificados: dict[int, str],
 ) -> str:
     """Genera con máscara y termina cuando json.loads() obtiene un objeto."""
     logits: list[float]
@@ -37,6 +37,7 @@ def generar_respuesta(
 
     paso = 0
     ids_generados = []
+    respuesta = ""
     resultado = None
     print("Generando con restricciones...", flush=True)
 
@@ -61,7 +62,7 @@ def generar_respuesta(
 
         inicio = perf_counter()
         cantidad = enmascarar_logits(
-            logits, modelo, ids_generados, tokens_permitidos, funciones
+            logits, respuesta, tokens_decodificados, funciones
         )
         duracion = perf_counter() - inicio
         print(
@@ -80,7 +81,7 @@ def generar_respuesta(
         ids.append(siguiente_id)
         ids_generados.append(siguiente_id)
 
-        respuesta = modelo.decode(ids_generados)
+        respuesta += tokens_decodificados[siguiente_id]
         print("Respuesta parcial:", repr(respuesta), flush=True)
         paso += 1
 
@@ -90,6 +91,8 @@ def generar_respuesta(
             continue
 
     print("JSON completo. Generación terminada.", flush=True)
+    if modelo.decode(ids_generados) != respuesta:
+        raise ValueError("El texto concatenado no coincide con el SDK.")
     return respuesta
 
 
@@ -97,7 +100,7 @@ def procesar_promts(
     modelo: Any,
     funciones: list[dict[str, Any]],
     promts: list[dict[str, Any]],
-    tokens_permitidos: set[int],
+    tokens_decodificados: dict[int, str],
 ) -> list[dict[str, Any]]:
     """Genera y devuelve los resultados reutilizando el mismo modelo."""
     promt: dict[str, Any]
@@ -127,7 +130,7 @@ def procesar_promts(
             print(ids)
 
             respuesta = generar_respuesta(
-                modelo, ids, funciones, tokens_permitidos
+                modelo, ids, funciones, tokens_decodificados
             )
             llamada = validar_llamada(json.loads(respuesta), funciones)
             resultado = {
@@ -152,7 +155,7 @@ def main() -> int:
     promts: list[dict[str, Any]]
     modelo: Any
     vocabulario: dict[str, int]
-    tokens_permitidos: set[int]
+    tokens_decodificados: dict[int, str]
     resultados: list[dict[str, Any]]
     inicio: float
     duracion: float
@@ -170,12 +173,12 @@ def main() -> int:
         print("Cargando el modelo...")
         modelo = inicializar_modelo()
         vocabulario = cargar_vocabulario(modelo)
-        tokens_permitidos = set(vocabulario.values())
+        tokens_decodificados = preparar_tokens(modelo, vocabulario)
         print(f"Modelo preparado. Vocabulario: {len(vocabulario)} tokens.")
 
         inicio = perf_counter()
         resultados = procesar_promts(
-            modelo, funciones, promts, tokens_permitidos
+            modelo, funciones, promts, tokens_decodificados
         )
         duracion = perf_counter() - inicio
         guardar_resultados(

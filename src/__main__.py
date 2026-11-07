@@ -47,7 +47,7 @@ def generar_respuesta(
     respuesta = ""
     resultado = None
     etapas_funciones = [preparar_etapas(funcion) for funcion in funciones]
-    progresos = [(0, 0, "") for _ in funciones]
+    progresos = [(0, 0, "", "inicio") for _ in funciones]
     print("Generando con restricciones...", flush=True)
 
     while not isinstance(resultado, dict):

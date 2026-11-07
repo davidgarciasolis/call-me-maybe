@@ -4,8 +4,8 @@ import json
 from math import isfinite
 from typing import Any
 
-# Etapa actual, posición dentro del texto fijo y valor en construcción.
-Progreso = tuple[int, int, str]
+# Etapa, posición en texto fijo, valor numérico/booleano y estado de cadena.
+Progreso = tuple[int, int, str, str]
 
 
 def avanzar(
@@ -16,17 +16,19 @@ def avanzar(
     """Prueba un fragmento sin modificar el progreso recibido.
 
     Devuelve None si no puede completar la función. Solo revisa caracteres
-    nuevos y el valor actual; no vuelve a recorrer las etapas anteriores.
+    nuevos de las cadenas. Para números y booleanos revisa el valor actual.
+    No vuelve a recorrer las etapas anteriores.
     """
     etapa: int
     posicion: int
     valor: str
+    cadena: str
     indice: int
     caracter: str
     tipo: str
     texto: str
 
-    etapa, posicion, valor = progreso
+    etapa, posicion, valor, cadena = progreso
     indice = 0
     while indice < len(fragmento):
         if etapa == len(etapas):
@@ -41,6 +43,28 @@ def avanzar(
             if posicion == len(texto):
                 etapa += 1
                 posicion = 0
+        elif tipo == "string":
+            if cadena == "cerrada":
+                if caracter not in ",}":
+                    return None
+                etapa += 1
+                cadena = "inicio"
+                # El separador pertenece a la siguiente etapa.
+                continue
+            if cadena == "inicio":
+                if caracter != '"':
+                    return None
+                cadena = "abierta"
+            elif cadena == "escape":
+                if caracter not in '"\\/bfnrt':
+                    return None
+                cadena = "abierta"
+            elif caracter == "\\":
+                cadena = "escape"
+            elif caracter == '"':
+                cadena = "cerrada"
+            elif ord(caracter) < 32:
+                return None
         else:
             if caracter in ",}" and valor_completo(valor, tipo):
                 etapa += 1
@@ -52,7 +76,7 @@ def avanzar(
                 return None
         indice += 1
 
-    return etapa, posicion, valor
+    return etapa, posicion, valor, cadena
 
 
 def avanzar_funciones(

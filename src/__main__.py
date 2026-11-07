@@ -3,14 +3,14 @@ import sys
 from time import perf_counter
 from typing import Any
 
-from .decodificacion import enmascarar_logits, preparar_tokens
+from .decodificacion import enmascarar_logits
 from .error import (
     ErrorCargaModelo,
     ErrorCargaVocabulario,
     ErrorProcesamientoPromts,
 )
 from .modelo import cargar_vocabulario, inicializar_modelo
-from .parseo import load_functions, load_prompts, read_json
+from .parseo import load_functions, load_prompts
 from .prompts import construir_prompt
 from .restricciones import validar_llamada
 from .salida import guardar_resultados
@@ -20,7 +20,7 @@ def generar_respuesta(
     modelo: Any,
     ids: list[int],
     funciones: list[dict[str, Any]],
-    tokens_permitidos: dict[int, bytes],
+    tokens_permitidos: set[int],
 ) -> str:
     """Genera con máscara y termina cuando json.loads() obtiene un objeto."""
     logits: list[float]
@@ -61,7 +61,7 @@ def generar_respuesta(
 
         inicio = perf_counter()
         cantidad = enmascarar_logits(
-            logits, ids_generados, tokens_permitidos, funciones
+            logits, modelo, ids_generados, tokens_permitidos, funciones
         )
         duracion = perf_counter() - inicio
         print(
@@ -90,11 +90,6 @@ def generar_respuesta(
             continue
 
     print("JSON completo. Generación terminada.", flush=True)
-    respuesta = b"".join(
-        tokens_permitidos[token] for token in ids_generados
-    ).decode("utf-8")
-    if respuesta != modelo.decode(ids_generados):
-        raise ValueError("La respuesta no coincide con la decodificación SDK.")
     return respuesta
 
 
@@ -102,7 +97,7 @@ def procesar_promts(
     modelo: Any,
     funciones: list[dict[str, Any]],
     promts: list[dict[str, Any]],
-    tokens_permitidos: dict[int, bytes],
+    tokens_permitidos: set[int],
 ) -> list[dict[str, Any]]:
     """Genera y devuelve los resultados reutilizando el mismo modelo."""
     promt: dict[str, Any]
@@ -115,7 +110,6 @@ def procesar_promts(
     llamada: dict[str, Any]
     resultado: dict[str, Any]
     resultados: list[dict[str, Any]]
-    error: Exception
 
     resultados = []
     print("Prompts preparados para el modelo:")
@@ -158,12 +152,10 @@ def main() -> int:
     promts: list[dict[str, Any]]
     modelo: Any
     vocabulario: dict[str, int]
-    tokenizador: Any
-    tokens_permitidos: dict[int, bytes]
+    tokens_permitidos: set[int]
     resultados: list[dict[str, Any]]
     inicio: float
     duracion: float
-    error: Exception
 
     try:
         funciones = load_functions("data/input/functions_definition.json")
@@ -178,10 +170,7 @@ def main() -> int:
         print("Cargando el modelo...")
         modelo = inicializar_modelo()
         vocabulario = cargar_vocabulario(modelo)
-        tokenizador = read_json(modelo.get_path_to_tokenizer_file())
-        if not isinstance(tokenizador, dict):
-            raise ValueError("tokenizer.json debe contener un objeto.")
-        tokens_permitidos = preparar_tokens(vocabulario, tokenizador)
+        tokens_permitidos = set(vocabulario.values())
         print(f"Modelo preparado. Vocabulario: {len(vocabulario)} tokens.")
 
         inicio = perf_counter()
@@ -201,13 +190,19 @@ def main() -> int:
         print(f"No se pudo cargar el modelo: {error}", file=sys.stderr)
         return 1
     except ErrorCargaVocabulario as error:
-        print(f"No se pudo cargar el vocabulario: {error}", file=sys.stderr)
+        print(
+            f"No se pudo cargar el vocabulario: {error}", file=sys.stderr
+        )
         return 1
     except ErrorProcesamientoPromts as error:
-        print(f"No se pudieron procesar los prompts: {error}", file=sys.stderr)
+        print(
+            f"No se pudieron procesar los prompts: {error}", file=sys.stderr
+        )
         return 1
     except OSError as error:
-        print(f"No se pudo leer o guardar un archivo: {error}", file=sys.stderr)
+        print(
+            f"No se pudo leer o guardar un archivo: {error}", file=sys.stderr
+        )
         return 1
     except ValueError as error:
         print(f"Contenido o valor no válido: {error}", file=sys.stderr)

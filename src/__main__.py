@@ -12,7 +12,12 @@ from .error import (
 from .modelo import cargar_vocabulario, inicializar_modelo
 from .parseo import load_functions, load_prompts
 from .prompts import construir_prompt
-from .restricciones import validar_llamada
+from .restricciones import (
+    Progreso,
+    avanzar_funciones,
+    preparar_etapas,
+    validar_llamada,
+)
 from .salida import guardar_resultados
 
 
@@ -34,11 +39,15 @@ def generar_respuesta(
     inicio: float
     duracion: float
     cantidad: int
+    etapas_funciones: list[list[tuple[str, str]]]
+    progresos: list[Progreso | None]
 
     paso = 0
     ids_generados = []
     respuesta = ""
     resultado = None
+    etapas_funciones = [preparar_etapas(funcion) for funcion in funciones]
+    progresos = [(0, 0, "") for _ in funciones]
     print("Generando con restricciones...", flush=True)
 
     while not isinstance(resultado, dict):
@@ -62,7 +71,7 @@ def generar_respuesta(
 
         inicio = perf_counter()
         cantidad = enmascarar_logits(
-            logits, respuesta, tokens_decodificados, funciones
+            logits, progresos, tokens_decodificados, etapas_funciones
         )
         duracion = perf_counter() - inicio
         print(
@@ -82,6 +91,9 @@ def generar_respuesta(
         ids_generados.append(siguiente_id)
 
         respuesta += tokens_decodificados[siguiente_id]
+        progresos = avanzar_funciones(
+            progresos, etapas_funciones, tokens_decodificados[siguiente_id]
+        )
         print("Respuesta parcial:", repr(respuesta), flush=True)
         paso += 1
 

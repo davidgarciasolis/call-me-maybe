@@ -3,7 +3,7 @@
 from math import isfinite
 from typing import Any
 
-from .restricciones import estado_etapas, preparar_etapas
+from .restricciones import Progreso, avanzar
 
 
 def preparar_tokens(
@@ -25,32 +25,33 @@ def preparar_tokens(
 
 def enmascarar_logits(
     logits: list[float],
-    respuesta: str,
+    progresos: list[Progreso | None],
     tokens_decodificados: dict[int, str],
-    funciones: list[dict[str, Any]],
+    etapas_funciones: list[list[tuple[str, str]]],
 ) -> int:
     """Bloquea los tokens cuyo texto incumple las restricciones.
 
-    Concatena la respuesta con el texto guardado de cada token, sin llamar
-    al SDK. Modifica los logits antes de seleccionar el siguiente token.
+    Prueba el texto de cada token desde el progreso guardado por función.
+    No modifica esos progresos ni llama al SDK; solo modifica los logits.
     """
     identificador: int
     logit: float
     fragmento: str
-    texto: str
     permitido: bool
     cantidad: int
-    etapas: list[list[tuple[str, str]]]
-
-    etapas = [preparar_etapas(funcion) for funcion in funciones]
+    etapas: list[tuple[str, str]]
+    progreso: Progreso | None
     cantidad = 0
 
     for identificador, logit in enumerate(logits):
         permitido = False
         fragmento = tokens_decodificados.get(identificador, "")
         if isfinite(logit) and fragmento:
-            texto = respuesta + fragmento
-            permitido = estado_etapas(texto, etapas) != "invalida"
+            for progreso, etapas in zip(progresos, etapas_funciones):
+                if (progreso is not None
+                        and avanzar(progreso, etapas, fragmento) is not None):
+                    permitido = True
+                    break
 
         if permitido:
             cantidad += 1

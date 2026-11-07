@@ -4,6 +4,75 @@ import json
 from math import isfinite
 from typing import Any
 
+# Etapa actual, posición dentro del texto fijo y valor en construcción.
+Progreso = tuple[int, int, str]
+
+
+def avanzar(
+    progreso: Progreso,
+    etapas: list[tuple[str, str]],
+    fragmento: str,
+) -> Progreso | None:
+    """Prueba un fragmento sin modificar el progreso recibido.
+
+    Devuelve None si no puede completar la función. Solo revisa caracteres
+    nuevos y el valor actual; no vuelve a recorrer las etapas anteriores.
+    """
+    etapa: int
+    posicion: int
+    valor: str
+    indice: int
+    caracter: str
+    tipo: str
+    texto: str
+
+    etapa, posicion, valor = progreso
+    indice = 0
+    while indice < len(fragmento):
+        if etapa == len(etapas):
+            return None
+        tipo, texto = etapas[etapa]
+        caracter = fragmento[indice]
+
+        if tipo == "fijo":
+            if caracter != texto[posicion]:
+                return None
+            posicion += 1
+            if posicion == len(texto):
+                etapa += 1
+                posicion = 0
+        else:
+            if caracter in ",}" and valor_completo(valor, tipo):
+                etapa += 1
+                valor = ""
+                # El separador pertenece a la siguiente etapa.
+                continue
+            valor += caracter
+            if not prefijo_valor_valido(valor, tipo):
+                return None
+        indice += 1
+
+    return etapa, posicion, valor
+
+
+def avanzar_funciones(
+    progresos: list[Progreso | None],
+    etapas_funciones: list[list[tuple[str, str]]],
+    fragmento: str,
+) -> list[Progreso | None]:
+    """Devuelve los progresos nuevos y mantiene las funciones descartadas."""
+    nuevos: list[Progreso | None]
+    progreso: Progreso | None
+    etapas: list[tuple[str, str]]
+
+    nuevos = []
+    for progreso, etapas in zip(progresos, etapas_funciones):
+        if progreso is None:
+            nuevos.append(None)
+        else:
+            nuevos.append(avanzar(progreso, etapas, fragmento))
+    return nuevos
+
 
 def prefijo_cadena_valido(fragmento: str) -> bool:
     """Indica si el fragmento puede formar una cadena JSON válida.

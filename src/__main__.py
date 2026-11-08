@@ -16,9 +16,9 @@ from .restricciones import (
     Progreso,
     avanzar_funciones,
     preparar_etapas,
-    validar_llamada,
 )
 from .salida import guardar_resultados
+from .validacion import validar_llamada
 
 
 def generar_respuesta(

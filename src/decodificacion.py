@@ -1,4 +1,4 @@
-"""Enmascarado de logits comparando el texto decodificado por el SDK."""
+"""Selección por logit comprobando el texto decodificado por el SDK."""
 
 from math import isfinite
 from typing import Any
@@ -23,40 +23,37 @@ def preparar_tokens(
     return tokens
 
 
-def enmascarar_logits(
+def seleccionar_token(
     logits: list[float],
     progresos: list[Progreso | None],
     tokens_decodificados: dict[int, str],
     etapas_funciones: list[list[tuple[str, str]]],
 ) -> int:
-    """Bloquea los tokens cuyo texto incumple las restricciones.
+    """Devuelve el ID del primer token válido por logit descendente.
 
-    Prueba el texto de cada token desde el progreso guardado por función.
-    No modifica esos progresos ni llama al SDK; solo modifica los logits.
+    Solo ordena logits finitos. En empates conserva el menor ID.
+    No modifica los logits ni los progresos, ni llama al SDK.
     """
+    identificadores: list[int]
     identificador: int
     logit: float
     fragmento: str
-    permitido: bool
-    cantidad: int
     etapas: list[tuple[str, str]]
     progreso: Progreso | None
 
-    cantidad = 0
-
+    identificadores = []
     for identificador, logit in enumerate(logits):
-        permitido = False
+        if isfinite(logit):
+            identificadores.append(identificador)
+    identificadores.sort(key=logits.__getitem__, reverse=True)
+
+    for identificador in identificadores:
         fragmento = tokens_decodificados.get(identificador, "")
-        if isfinite(logit) and fragmento:
-            for progreso, etapas in zip(progresos, etapas_funciones):
-                if (progreso is not None
-                        and avanzar(progreso, etapas, fragmento) is not None):
-                    permitido = True
-                    break
+        if not fragmento:
+            continue
+        for progreso, etapas in zip(progresos, etapas_funciones):
+            if (progreso is not None
+                    and avanzar(progreso, etapas, fragmento) is not None):
+                return identificador
 
-        if permitido:
-            cantidad += 1
-        else:
-            logits[identificador] = float("-inf")
-
-    return cantidad
+    raise ValueError("No quedan tokens permitidos.")

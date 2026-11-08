@@ -3,7 +3,7 @@ import sys
 from time import perf_counter
 from typing import Any
 
-from .decodificacion import enmascarar_logits, preparar_tokens
+from .decodificacion import preparar_tokens, seleccionar_token
 from .error import (
     ErrorCargaModelo,
     ErrorCargaVocabulario,
@@ -27,18 +27,15 @@ def generar_respuesta(
     funciones: list[dict[str, Any]],
     tokens_decodificados: dict[int, str],
 ) -> str:
-    """Genera con máscara y termina cuando json.loads() obtiene un objeto."""
+    """Elige tokens válidos hasta que json.loads() obtiene un objeto."""
     logits: list[float]
     ids_generados: list[int]
     siguiente_id: int
-    identificador: int
-    logit: float
     paso: int
     respuesta: str
     resultado: Any
     inicio: float
     duracion: float
-    cantidad: int
     etapas_funciones: list[list[tuple[str, str]]]
     progresos: list[Progreso | None]
 
@@ -70,23 +67,14 @@ def generar_respuesta(
             raise ValueError("El modelo no ha devuelto logits.")
 
         inicio = perf_counter()
-        cantidad = enmascarar_logits(
+        siguiente_id = seleccionar_token(
             logits, progresos, tokens_decodificados, etapas_funciones
         )
         duracion = perf_counter() - inicio
         print(
-            f"Restricciones aplicadas en {duracion:.2f} s. "
-            f"Tokens permitidos: {cantidad}.",
+            f"Ordenación y selección completadas en {duracion:.3f} s.",
             flush=True,
         )
-        if cantidad == 0:
-            raise ValueError("No quedan tokens permitidos.")
-
-        siguiente_id = 0
-        for identificador, logit in enumerate(logits):
-            if logit > logits[siguiente_id]:
-                siguiente_id = identificador
-
         ids.append(siguiente_id)
         ids_generados.append(siguiente_id)
 

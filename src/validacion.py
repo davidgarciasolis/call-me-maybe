@@ -45,7 +45,12 @@ def prefijo_booleano_valido(fragmento: str) -> bool:
 def prefijo_valor_valido(fragmento: str, tipo: str) -> bool:
     """Comprueba un prefijo según el tipo declarado del parámetro."""
     if tipo == "string":
-        return valor_completo(fragmento, tipo, permitir_incompleto=True)
+        if not fragmento:
+            return True
+        try:
+            return isinstance(json.loads(fragmento), str)
+        except json.JSONDecodeError as error:
+            return error.msg == "Unterminated string starting at"
 
     if tipo == "number":
         return prefijo_numero_valido(fragmento)
@@ -56,27 +61,17 @@ def prefijo_valor_valido(fragmento: str, tipo: str) -> bool:
     return False
 
 
-def valor_completo(
-    fragmento: str, tipo: str, permitir_incompleto: bool = False,
-) -> bool:
-    """Valida un valor y permite opcionalmente cadenas sin terminar."""
-    valor: Any
-
-    if tipo == "string":
-        if permitir_incompleto and not fragmento:
-            return True
-    elif not prefijo_valor_valido(fragmento, tipo):
+def valor_completo(fragmento: str, tipo: str) -> bool:
+    """Comprueba si un prefijo válido ya es un valor JSON completo."""
+    if not prefijo_valor_valido(fragmento, tipo):
         return False
 
     try:
-        valor = json.loads(fragmento)
-    except json.JSONDecodeError as error:
-        return (tipo == "string" and permitir_incompleto
-                and error.msg == "Unterminated string starting at")
+        json.loads(fragmento)
     except ValueError:
         return False
 
-    return tipo != "string" or isinstance(valor, str)
+    return True
 
 
 def validar_llamada(
@@ -117,16 +112,10 @@ def validar_llamada(
             continue
 
         definiciones = funcion["parameters"]
-        for parametro in definiciones:
-            if parametro not in parametros:
-                raise ValueError(
-                    f"{nombre}: falta el parámetro '{parametro}'."
-                )
-        for parametro in parametros:
-            if parametro not in definiciones:
-                raise ValueError(
-                    f"{nombre}: parámetro no definido '{parametro}'."
-                )
+        if parametros.keys() != definiciones.keys():
+            raise ValueError(
+                f"{nombre}: los parámetros no coinciden con la definición."
+            )
 
         for parametro in definiciones:
             tipo = definiciones[parametro]["type"]

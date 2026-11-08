@@ -3,7 +3,7 @@
 from math import isfinite
 from typing import Any
 
-from .restricciones import Progreso, avanzar
+from .restricciones import prefijo_llamada_valido
 
 
 def preparar_tokens(
@@ -25,21 +25,20 @@ def preparar_tokens(
 
 def seleccionar_token(
     logits: list[float],
-    progresos: list[Progreso | None],
+    respuesta: str,
     tokens_decodificados: dict[int, str],
-    etapas_funciones: list[list[tuple[str, str]]],
+    funciones: list[dict[str, Any]],
 ) -> int:
     """Devuelve el ID del primer token válido por logit descendente.
 
     Solo ordena logits finitos. En empates conserva el menor ID.
-    No modifica los logits ni los progresos, ni llama al SDK.
+    Valida desde el principio la respuesta acumulada más cada candidato.
+    No modifica los logits ni llama al SDK.
     """
     identificadores: list[int]
     identificador: int
     logit: float
     fragmento: str
-    etapas: list[tuple[str, str]]
-    progreso: Progreso | None
 
     identificadores = []
     for identificador, logit in enumerate(logits):
@@ -51,9 +50,7 @@ def seleccionar_token(
         fragmento = tokens_decodificados.get(identificador, "")
         if not fragmento:
             continue
-        for progreso, etapas in zip(progresos, etapas_funciones):
-            if (progreso is not None
-                    and avanzar(progreso, etapas, fragmento) is not None):
-                return identificador
+        if prefijo_llamada_valido(respuesta + fragmento, funciones):
+            return identificador
 
     raise ValueError("No quedan tokens permitidos.")

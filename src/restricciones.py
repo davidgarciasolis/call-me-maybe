@@ -1,167 +1,120 @@
-"""Etapas y progreso de las restricciones durante la generación."""
+"""Validación de la respuesta completa desde el principio, sin etapas."""
 
 import json
 from typing import Any
 
 from .validacion import prefijo_valor_valido, valor_completo
 
-# Etapa, posición en texto fijo, valor numérico/booleano y estado de cadena.
-Progreso = tuple[int, int, str, str]
 
+def consumir_fijo(
+    respuesta: str, posicion: int, esperado: str,
+) -> int | None:
+    """Devuelve la posición prevista, o None si el texto no coincide.
 
-def avanzar(
-    progreso: Progreso,
-    etapas: list[tuple[str, str]],
-    fragmento: str,
-) -> Progreso | None:
-    """Prueba un fragmento sin modificar el progreso recibido.
-
-    Devuelve None si no puede completar la función. Solo revisa caracteres
-    nuevos de las cadenas. Para números y booleanos revisa el valor actual.
-    No vuelve a recorrer las etapas anteriores.
+    Si supera la longitud de respuesta, el texto fijo está incompleto.
     """
-    etapa: int
-    posicion: int
-    valor: str
-    cadena: str
-    indice: int
+    fragmento: str
+
+    fragmento = respuesta[posicion:posicion + len(esperado)]
+    if not esperado.startswith(fragmento):
+        return None
+    return posicion + len(esperado)
+
+
+def consumir_cadena(respuesta: str, posicion: int) -> int | None:
+    """Recorre una cadena; devuelve el final disponible o None si es inválida.
+
+    Admite cierre o escape pendientes al final del texto disponible.
+    Conserva los escapes simples admitidos por la versión anterior.
+    """
     caracter: str
-    tipo: str
-    texto: str
+    escape: bool
 
-    etapa, posicion, valor, cadena = progreso
-    indice = 0
-    while indice < len(fragmento):
-        if etapa == len(etapas):
+    if respuesta[posicion] != '"':
+        return None
+    posicion += 1
+    escape = False
+    while posicion < len(respuesta):
+        caracter = respuesta[posicion]
+        posicion += 1
+        if escape:
+            if caracter not in '"\\/bfnrt':
+                return None
+            escape = False
+        elif caracter == "\\":
+            escape = True
+        elif caracter == '"':
+            return posicion
+        elif ord(caracter) < 32:
             return None
-        tipo, texto = etapas[etapa]
-        caracter = fragmento[indice]
-
-        if tipo == "fijo":
-            if caracter != texto[posicion]:
-                return None
-            posicion += 1
-            if posicion == len(texto):
-                etapa += 1
-                posicion = 0
-        elif tipo == "string":
-            if cadena == "cerrada":
-                if caracter not in ",}":
-                    return None
-                etapa += 1
-                cadena = "inicio"
-                # El separador pertenece a la siguiente etapa.
-                continue
-            if cadena == "inicio":
-                if caracter != '"':
-                    return None
-                cadena = "abierta"
-            elif cadena == "escape":
-                if caracter not in '"\\/bfnrt':
-                    return None
-                cadena = "abierta"
-            elif caracter == "\\":
-                cadena = "escape"
-            elif caracter == '"':
-                cadena = "cerrada"
-            elif ord(caracter) < 32:
-                return None
-        else:
-            if caracter in ",}" and valor_completo(valor, tipo):
-                etapa += 1
-                valor = ""
-                # El separador pertenece a la siguiente etapa.
-                continue
-            valor += caracter
-            if not prefijo_valor_valido(valor, tipo):
-                return None
-        indice += 1
-
-    return etapa, posicion, valor, cadena
+    return posicion
 
 
-def avanzar_funciones(
-    progresos: list[Progreso | None],
-    etapas_funciones: list[list[tuple[str, str]]],
-    fragmento: str,
-) -> list[Progreso | None]:
-    """Devuelve los progresos nuevos y mantiene las funciones descartadas."""
-    nuevos: list[Progreso | None]
-    progreso: Progreso | None
-    etapas: list[tuple[str, str]]
+def prefijo_funcion_valido(
+    respuesta: str, funcion: dict[str, Any],
+) -> bool:
+    """Revisa toda la respuesta según una función, sin guardar progreso.
 
-    nuevos = []
-    for progreso, etapas in zip(progresos, etapas_funciones):
-        if progreso is None:
-            nuevos.append(None)
-        else:
-            nuevos.append(avanzar(progreso, etapas, fragmento))
-    return nuevos
-
-
-def preparar_etapas(funcion: dict[str, Any]) -> list[tuple[str, str]]:
-    """Construye las etapas de texto fijo y valores de una función.
-
-    Cada tupla contiene 'fijo' y el texto esperado, o el tipo de un valor
-    y un texto vacío. Conserva el orden de los parámetros de la definición.
+    Exige JSON compacto, parámetros en orden y tipos string/number/boolean.
+    Acepta prefijos incompletos que todavía pueden formar la llamada.
     """
-    etapas: list[tuple[str, str]]
-    parametro: str
+    posicion: int | None
+    inicio: int
+    nombre: str
     definicion: dict[str, Any]
+    tipo: str
+    valor: str
     separador: str
 
-    etapas = [
-        ("fijo", '{"name":' + json.dumps(funcion["name"])
-         + ',"parameters":{'),
-    ]
+    posicion = consumir_fijo(
+        respuesta, 0,
+        '{"name":' + json.dumps(funcion["name"]) + ',"parameters":{',
+    )
+    if posicion is None:
+        return False
+    if posicion >= len(respuesta):
+        return True
+
     separador = ""
-    for parametro, definicion in funcion["parameters"].items():
-        if definicion["type"] not in ("string", "number", "boolean"):
-            raise ValueError(
-                f"Tipo no admitido: '{definicion['type']}'."
-            )
-        etapas.append(("fijo", separador + json.dumps(parametro) + ":"))
-        etapas.append((definicion["type"], ""))
+    for nombre, definicion in funcion["parameters"].items():
+        posicion = consumir_fijo(
+            respuesta, posicion, separador + json.dumps(nombre) + ":",
+        )
+        if posicion is None:
+            return False
+        if posicion >= len(respuesta):
+            return True
+
+        inicio = posicion
+        tipo = definicion["type"]
+        if tipo == "string":
+            posicion = consumir_cadena(respuesta, posicion)
+            if posicion is None:
+                return False
+            if posicion == len(respuesta):
+                return True
+        else:
+            while (posicion < len(respuesta)
+                   and respuesta[posicion] not in ",}"):
+                posicion += 1
+            valor = respuesta[inicio:posicion]
+            if posicion == len(respuesta):
+                return prefijo_valor_valido(valor, tipo)
+            if not valor_completo(valor, tipo):
+                return False
         separador = ","
-    etapas.append(("fijo", "}}"))
 
-    return etapas
-
-
-def estado_llamada(
-    respuesta: str,
-    funciones: list[dict[str, Any]],
-) -> str:
-    """Devuelve 'invalida', 'incompleta' o 'completa' para una llamada.
-
-    Revisa desde el principio JSON compacto, con name antes de parameters
-    y los parámetros en el orden de las definiciones. Recibe funciones
-    validadas por load_functions() y admite string, number y boolean.
-    """
-    etapas_funciones: list[list[tuple[str, str]]]
-
-    etapas_funciones = [preparar_etapas(funcion) for funcion in funciones]
-    return estado_etapas(respuesta, etapas_funciones)
+    posicion = consumir_fijo(respuesta, posicion, "}}")
+    return posicion is not None and posicion >= len(respuesta)
 
 
-def estado_etapas(
-    respuesta: str,
-    etapas_funciones: list[list[tuple[str, str]]],
-) -> str:
-    """Valida desde el inicio con el mismo avance que utiliza la máscara."""
-    etapas: list[tuple[str, str]]
-    progreso: Progreso | None
-    hay_incompleta: bool
+def prefijo_llamada_valido(
+    respuesta: str, funciones: list[dict[str, Any]],
+) -> bool:
+    """Acepta la respuesta si puede completar alguna función disponible."""
+    funcion: dict[str, Any]
 
-    hay_incompleta = False
-    for etapas in etapas_funciones:
-        progreso = avanzar((0, 0, "", "inicio"), etapas, respuesta)
-        if progreso is None:
-            continue
-        if progreso[0] == len(etapas):
-            return "completa"
-        hay_incompleta = True
-
-    if hay_incompleta:
-        return "incompleta"
-    return "invalida"
+    for funcion in funciones:
+        if prefijo_funcion_valido(respuesta, funcion):
+            return True
+    return False

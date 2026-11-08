@@ -12,11 +12,6 @@ from .error import (
 from .modelo import cargar_vocabulario, inicializar_modelo
 from .parseo import load_functions, load_prompts
 from .prompts import construir_prompt
-from .restricciones import (
-    Progreso,
-    avanzar_funciones,
-    preparar_etapas,
-)
 from .salida import guardar_resultados
 from .validacion import validar_llamada
 
@@ -36,15 +31,17 @@ def generar_respuesta(
     resultado: Any
     inicio: float
     duracion: float
-    etapas_funciones: list[list[tuple[str, str]]]
-    progresos: list[Progreso | None]
+    funcion: dict[str, Any]
+    definicion: dict[str, Any]
 
     paso = 0
     ids_generados = []
     respuesta = ""
     resultado = None
-    etapas_funciones = [preparar_etapas(funcion) for funcion in funciones]
-    progresos = [(0, 0, "", "inicio") for _ in funciones]
+    for funcion in funciones:
+        for definicion in funcion["parameters"].values():
+            if definicion["type"] not in ("string", "number", "boolean"):
+                raise ValueError(f"Tipo no admitido: '{definicion['type']}'.")
     print("Generando con restricciones...", flush=True)
 
     while not isinstance(resultado, dict):
@@ -68,7 +65,7 @@ def generar_respuesta(
 
         inicio = perf_counter()
         siguiente_id = seleccionar_token(
-            logits, progresos, tokens_decodificados, etapas_funciones
+            logits, respuesta, tokens_decodificados, funciones
         )
         duracion = perf_counter() - inicio
         print(
@@ -79,9 +76,6 @@ def generar_respuesta(
         ids_generados.append(siguiente_id)
 
         respuesta += tokens_decodificados[siguiente_id]
-        progresos = avanzar_funciones(
-            progresos, etapas_funciones, tokens_decodificados[siguiente_id]
-        )
         print("Respuesta parcial:", repr(respuesta), flush=True)
         paso += 1
 

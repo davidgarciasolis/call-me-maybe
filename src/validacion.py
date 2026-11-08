@@ -5,40 +5,6 @@ from math import isfinite
 from typing import Any
 
 
-def prefijo_cadena_valido(fragmento: str) -> bool:
-    """Indica si el fragmento puede formar una cadena JSON válida.
-
-    Recibe solo la cadena, incluida su comilla inicial, sin separadores
-    ni espacios exteriores. Acepta el fragmento vacío, cadenas completas
-    y cadenas incompletas, incluso con escapes pendientes de terminar.
-    Admite escapes básicos de JSON, pero rechaza los escapes Unicode.
-    """
-    indice: int
-    caracter: str
-    escape: bool
-
-    if not fragmento:
-        return True
-    if fragmento[0] != '"':
-        return False
-
-    escape = False
-
-    for indice, caracter in enumerate(fragmento[1:], start=1):
-        if escape:
-            if caracter not in '"\\/bfnrt':
-                return False
-            escape = False
-        elif caracter == "\\":
-            escape = True
-        elif caracter == '"':
-            return indice == len(fragmento) - 1
-        elif ord(caracter) < 32:
-            return False
-
-    return True
-
-
 def prefijo_numero_valido(fragmento: str) -> bool:
     """Comprueba un prefijo de número JSON, sin exponentes ni espacios.
 
@@ -79,7 +45,7 @@ def prefijo_booleano_valido(fragmento: str) -> bool:
 def prefijo_valor_valido(fragmento: str, tipo: str) -> bool:
     """Comprueba un prefijo según el tipo declarado del parámetro."""
     if tipo == "string":
-        return prefijo_cadena_valido(fragmento)
+        return valor_completo(fragmento, tipo, permitir_incompleto=True)
 
     if tipo == "number":
         return prefijo_numero_valido(fragmento)
@@ -90,17 +56,27 @@ def prefijo_valor_valido(fragmento: str, tipo: str) -> bool:
     return False
 
 
-def valor_completo(fragmento: str, tipo: str) -> bool:
-    """Comprueba si una cadena, número o booleano está terminado."""
-    if not prefijo_valor_valido(fragmento, tipo):
+def valor_completo(
+    fragmento: str, tipo: str, permitir_incompleto: bool = False,
+) -> bool:
+    """Valida un valor y permite opcionalmente cadenas sin terminar."""
+    valor: Any
+
+    if tipo == "string":
+        if permitir_incompleto and not fragmento:
+            return True
+    elif not prefijo_valor_valido(fragmento, tipo):
         return False
 
     try:
-        json.loads(fragmento)
+        valor = json.loads(fragmento)
+    except json.JSONDecodeError as error:
+        return (tipo == "string" and permitir_incompleto
+                and error.msg == "Unterminated string starting at")
     except ValueError:
         return False
 
-    return True
+    return tipo != "string" or isinstance(valor, str)
 
 
 def validar_llamada(

@@ -31,17 +31,11 @@ def generar_respuesta(
     resultado: Any
     inicio: float
     duracion: float
-    funcion: dict[str, Any]
-    definicion: dict[str, Any]
 
     paso = 0
     ids_generados = []
     respuesta = ""
     resultado = None
-    for funcion in funciones:
-        for definicion in funcion["parameters"].values():
-            if definicion["type"] not in ("string", "number", "boolean"):
-                raise ValueError(f"Tipo no admitido: '{definicion['type']}'.")
     print("Generando con restricciones...", flush=True)
 
     while not isinstance(resultado, dict):
@@ -69,7 +63,7 @@ def generar_respuesta(
         )
         duracion = perf_counter() - inicio
         print(
-            f"Ordenación y selección completadas en {duracion:.3f} s.",
+            f"Selección completada en {duracion:.3f} s.",
             flush=True,
         )
         ids.append(siguiente_id)

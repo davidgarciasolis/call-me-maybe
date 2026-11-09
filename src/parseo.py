@@ -53,6 +53,11 @@ def validar_parametros(funcion: dict[str, Any], contexto: str) -> None:
                 f"{contexto}: el parámetro '{parametro}' necesita un 'type' "
                 "de texto no vacío."
             )
+        if tipo not in ("string", "number", "boolean"):
+            raise ValueError(
+                f"{contexto}: tipo no admitido '{tipo}' "
+                f"para el parámetro '{parametro}'."
+            )
 
 
 def validar_retorno(funcion: dict[str, Any], contexto: str) -> None:

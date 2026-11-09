@@ -1,7 +1,9 @@
 """Selección por logit comprobando el texto decodificado por el SDK."""
 
-from math import isfinite
 from typing import Any
+
+import numpy as np
+from numpy.typing import NDArray
 
 from .restricciones import prefijo_llamada_valido
 
@@ -29,28 +31,28 @@ def seleccionar_token(
     tokens_decodificados: dict[int, str],
     funciones: list[dict[str, Any]],
 ) -> int:
-    """Devuelve el ID del primer token válido por logit descendente.
+    """Busca el máximo y descarta con -inf los candidatos inválidos.
 
-    Solo ordena logits finitos. En empates conserva el menor ID.
+    Solo admite logits finitos. En empates conserva el menor ID.
     Valida desde el principio la respuesta acumulada más cada candidato.
     No modifica los logits ni llama al SDK.
     """
-    identificadores: list[int]
+    valores: NDArray[np.float64]
     identificador: int
-    logit: float
     fragmento: str
 
-    identificadores = []
-    for identificador, logit in enumerate(logits):
-        if isfinite(logit):
-            identificadores.append(identificador)
-    identificadores.sort(key=logits.__getitem__, reverse=True)
+    valores = np.array(logits, dtype=np.float64)
+    valores[~np.isfinite(valores)] = -np.inf
 
-    for identificador in identificadores:
+    while valores.size > 0:
+        identificador = int(np.argmax(valores))
+        if valores[identificador] == -np.inf:
+            break
         fragmento = tokens_decodificados.get(identificador, "")
-        if not fragmento:
-            continue
-        if prefijo_llamada_valido(respuesta + fragmento, funciones):
+        if fragmento and prefijo_llamada_valido(
+            respuesta + fragmento, funciones,
+        ):
             return identificador
+        valores[identificador] = -np.inf
 
     raise ValueError("No quedan tokens permitidos.")

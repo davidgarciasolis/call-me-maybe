@@ -11,16 +11,13 @@ def preparar_tokens(
     modelo: Any,
     vocabulario: dict[str, int],
 ) -> dict[int, str]:
-    """Decodifica una vez cada ID y descarta texto vacío o con '�'."""
+    """Decodifica una vez cada ID del vocabulario."""
     tokens: dict[int, str]
     identificador: int
-    texto: str
 
     tokens = {}
     for identificador in set(vocabulario.values()):
-        texto = modelo.decode([identificador])
-        if texto and "�" not in texto:
-            tokens[identificador] = texto
+        tokens[identificador] = modelo.decode([identificador])
     return tokens
 
 

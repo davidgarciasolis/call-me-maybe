@@ -1,7 +1,5 @@
 """Inicialización del modelo y carga de su vocabulario."""
 
-from typing import Any
-
 from llm_sdk import Small_LLM_Model
 
 from .error import ErrorCargaModelo, ErrorCargaVocabulario
@@ -11,7 +9,6 @@ from .parseo import read_json
 def inicializar_modelo() -> Small_LLM_Model:
     """Carga el modelo Qwen y su tokenizador."""
     modelo: Small_LLM_Model
-    error: Exception
 
     try:
         modelo = Small_LLM_Model(model_name="Qwen/Qwen3-0.6B")
@@ -21,23 +18,13 @@ def inicializar_modelo() -> Small_LLM_Model:
 
 
 def cargar_vocabulario(modelo: Small_LLM_Model) -> dict[str, int]:
-    """Lee y valida las correspondencias entre tokens e identificadores."""
+    """Lee las correspondencias entre tokens e identificadores del modelo."""
     ruta: str
-    vocabulario: Any
-    token: str
-    identificador: Any
-    error: Exception
+    vocabulario: dict[str, int]
 
     try:
         ruta = modelo.get_path_to_vocab_file()
         vocabulario = read_json(ruta)
-
-        if not isinstance(vocabulario, dict) or not vocabulario:
-            raise ValueError("El vocabulario debe ser un objeto JSON no vacío.")
-
-        for token, identificador in vocabulario.items():
-            if type(identificador) is not int or identificador < 0:
-                raise ValueError(f"ID no válido para el token '{token}'.")
     except Exception as error:
         raise ErrorCargaVocabulario(str(error)) from error
 

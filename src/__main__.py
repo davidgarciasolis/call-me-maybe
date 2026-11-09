@@ -13,7 +13,6 @@ from .modelo import cargar_vocabulario, inicializar_modelo
 from .parseo import load_functions, load_prompts
 from .prompts import construir_prompt
 from .salida import guardar_resultados
-from .validacion import validar_llamada
 
 
 def generar_respuesta(
@@ -120,7 +119,7 @@ def procesar_promts(
             respuesta = generar_respuesta(
                 modelo, ids, funciones, tokens_decodificados
             )
-            llamada = validar_llamada(json.loads(respuesta), funciones)
+            llamada = json.loads(respuesta)
             resultado = {
                 "prompt": promt["prompt"],
                 "name": llamada["name"],
@@ -128,7 +127,7 @@ def procesar_promts(
             }
             resultados.append(resultado)
             print("Resultado:")
-            print(json.dumps(resultado, ensure_ascii=False, indent=4))
+            print(json.dumps(resultado))
         except Exception as error:
             raise ErrorProcesamientoPromts(
                 f"Petición {indice}: {error}"

@@ -3,7 +3,6 @@
 from typing import Any
 
 import numpy as np
-from numpy.typing import NDArray
 
 from .restricciones import prefijo_llamada_valido
 
@@ -33,26 +32,23 @@ def seleccionar_token(
 ) -> int:
     """Busca el máximo y descarta con -inf los candidatos inválidos.
 
-    Solo admite logits finitos. En empates conserva el menor ID.
+    En empates conserva el menor ID.
     Valida desde el principio la respuesta acumulada más cada candidato.
     No modifica los logits ni llama al SDK.
     """
-    valores: NDArray[np.float64]
+    valores: list[float]
     identificador: int
     fragmento: str
 
-    valores = np.array(logits, dtype=np.float64)
-    valores[~np.isfinite(valores)] = -np.inf
+    valores = logits.copy()
 
-    while valores.size > 0:
+    while valores:
         identificador = int(np.argmax(valores))
-        if valores[identificador] == -np.inf:
+        if valores[identificador] == float("-inf"):
             break
-        fragmento = tokens_decodificados.get(identificador, "")
-        if fragmento and prefijo_llamada_valido(
-            respuesta + fragmento, funciones,
-        ):
+        fragmento = tokens_decodificados[identificador]
+        if prefijo_llamada_valido(respuesta + fragmento, funciones):
             return identificador
-        valores[identificador] = -np.inf
+        valores[identificador] = float("-inf")
 
     raise ValueError("No quedan tokens permitidos.")

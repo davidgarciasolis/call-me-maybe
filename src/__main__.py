@@ -1,8 +1,10 @@
 import json
 import sys
+from argparse import Namespace
 from time import perf_counter
 from typing import Any
 
+from .argumentos import leer_argumentos
 from .decodificacion import preparar_tokens, seleccionar_token
 from .error import (
     ErrorCargaModelo,
@@ -47,12 +49,6 @@ def generar_respuesta(
         duracion = perf_counter() - inicio
         print(f"Consulta completada en {duracion:.2f} s.", flush=True)
 
-        if paso == 0:
-            print("Cantidad de logits:")
-            print(len(logits))
-            print("Primeros 10 logits (por ID):")
-            print(logits[:10])
-
         if not logits:
             raise ValueError("El modelo no ha devuelto logits.")
 
@@ -69,7 +65,7 @@ def generar_respuesta(
         ids_generados.append(siguiente_id)
 
         respuesta += tokens_decodificados[siguiente_id]
-        print("Respuesta parcial:", repr(respuesta), flush=True)
+        print("Respuesta parcial:", flush=True)
         paso += 1
 
         try:
@@ -138,6 +134,7 @@ def procesar_promts(
 
 def main() -> int:
     """Lee las entradas y guarda las llamadas generadas con restricciones."""
+    argumentos: Namespace
     funciones: list[dict[str, Any]]
     promts: list[dict[str, Any]]
     modelo: Any
@@ -148,8 +145,9 @@ def main() -> int:
     duracion: float
 
     try:
-        funciones = load_functions("data/input/functions_definition.json")
-        promts = load_prompts("data/input/function_calling_tests.json")
+        argumentos = leer_argumentos()
+        funciones = load_functions(argumentos.functions_definition)
+        promts = load_prompts(argumentos.input)
 
         print("Funciones:")
         print(funciones)
@@ -168,9 +166,7 @@ def main() -> int:
             modelo, funciones, promts, tokens_decodificados
         )
         duracion = perf_counter() - inicio
-        guardar_resultados(
-            "data/output/function_calling_results.json", resultados
-        )
+        guardar_resultados(argumentos.output, resultados)
         print(
             f"Tiempo total de generación de todas las respuestas: "
             f"{duracion:.2f} s.",

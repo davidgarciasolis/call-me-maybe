@@ -27,10 +27,16 @@ install: prepare
 	uv sync --python "$(PYTHON)"
 
 run: prepare
-	uv run --python "$(PYTHON)" python -u -m src
+	uv run --python python3.10 python -u -m src \
+		--functions_definition "data/input/functions_definition.json" \
+		--input "data/input/function_calling_tests.json" \
+		--output "data/output/function_calling_results.json"
 
 debug: prepare
-	uv run --python "$(PYTHON)" python -m pdb -m src
+	uv run --python "$(PYTHON)" python -m pdb -m src \
+		--functions_definition "data/input/functions_definition.json" \
+		--input "data/input/function_calling_tests.json" \
+		--output "data/output/function_calling_results.json"
 
 clean:
 	find src llm_sdk -type d -name __pycache__ -prune -exec rm -rf {} +

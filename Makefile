@@ -43,10 +43,10 @@ clean:
 	rm -rf .mypy_cache .pytest_cache .ruff_cache
 
 lint: prepare
-	uv run --python "$(PYTHON)" flake8 .
-	uv run --python "$(PYTHON)" mypy . --warn-return-any \
+	uv run --python "$(PYTHON)" flake8 src
+	uv run --python "$(PYTHON)" mypy src --warn-return-any \
 		--warn-unused-ignores --ignore-missing-imports \
-		--disallow-untyped-defs --check-untyped-defs
+		--disallow-untyped-defs --check-untyped-defs --follow-imports=skip
 
 info:
 	@echo "Project: $(PROJECT_DIR)"

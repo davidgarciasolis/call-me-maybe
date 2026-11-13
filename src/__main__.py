@@ -149,6 +149,11 @@ def main() -> int:
         funciones = load_functions(argumentos.functions_definition)
         promts = load_prompts(argumentos.input)
 
+        if promts and not funciones:
+            raise ValueError(
+                "Hay peticiones, pero no hay funciones disponibles."
+            )
+
         print("Funciones:")
         print(funciones)
 
@@ -193,6 +198,9 @@ def main() -> int:
     except ValueError as error:
         print(f"Contenido o valor no válido: {error}", file=sys.stderr)
         return 1
+    except KeyboardInterrupt:
+        print("Ejecución interrumpida por el usuario.", file=sys.stderr)
+        return 130
     except Exception as error:
         print(
             f"No se pudo completar la carga o procesar los prompts: {error}",

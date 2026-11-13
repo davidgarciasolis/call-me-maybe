@@ -65,7 +65,7 @@ def generar_respuesta(
         ids_generados.append(siguiente_id)
 
         respuesta += tokens_decodificados[siguiente_id]
-        print("Respuesta parcial:", flush=True)
+        print("Respuesta parcial:", repr(respuesta), flush=True)
         paso += 1
 
         try:

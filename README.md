@@ -82,7 +82,6 @@ status `2`. A successful run returns `0`.
 | `make debug` | Run under Python's `pdb` debugger. |
 | `make clean` | Remove Python bytecode and development caches. |
 | `make lint` | Check `src` with flake8 and mypy, skipping imported modules. |
-| `make info` | Display local storage and environment settings. |
 
 The Makefile defaults to `~/sgoinfre` for its virtual environment, caches and
 temporary files. It configures two CPU threads through `OMP_NUM_THREADS` and

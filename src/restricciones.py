@@ -25,11 +25,14 @@ def consumir_cadena(respuesta: str, posicion: int) -> int | None:
     """Recorre una cadena; devuelve el final disponible o None si es inválida.
 
     Admite cierre o escape pendientes al final del texto disponible.
+    Rechaza las cadenas vacías, pero permite espacios como contenido.
     Conserva los escapes simples admitidos por la versión anterior.
     """
     caracter: str
 
     if respuesta[posicion] != '"':
+        return None
+    if respuesta[posicion:posicion + 2] == '""':
         return None
     posicion += 1
     while posicion < len(respuesta):

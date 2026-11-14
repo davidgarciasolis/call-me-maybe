@@ -23,9 +23,6 @@ generation, it checks candidate tokens against the structure of the available
 functions. Instructions in the prompt describe the task; token restrictions
 control the generated structure.
 
-The implementation is still being validated. The accuracy, reliability and
-runtime targets described below have not been established for this version.
-
 ## Instructions
 
 ### Requirements and installation
@@ -84,7 +81,7 @@ status `2`. A successful run returns `0`.
 | `make run` | Run with Python 3.10 and the default file paths. |
 | `make debug` | Run under Python's `pdb` debugger. |
 | `make clean` | Remove Python bytecode and development caches. |
-| `make lint` | Run flake8 and mypy with the subject's required flags. |
+| `make lint` | Check `src` with flake8 and mypy, skipping imported modules. |
 | `make info` | Display local storage and environment settings. |
 
 The Makefile defaults to `~/sgoinfre` for its virtual environment, caches and
@@ -98,6 +95,11 @@ make run SGOINFRE=/path/to/storage THREADS=4
 
 `make run` and `make debug` pass the default paths directly in their commands.
 Use the `uv run python -m src` command for custom input or output paths.
+
+The current lint target checks application code only. Subject IV.2 specifies
+`flake8 .` and `mypy . --warn-return-any --warn-unused-ignores
+--ignore-missing-imports --disallow-untyped-defs --check-untyped-defs`.
+Passing the narrower checks does not establish compliance with those commands.
 
 ## Input and output
 
@@ -171,10 +173,9 @@ characters and simple JSON escapes, but generated string arguments do not
 support `\uXXXX` escapes. Structural names are matched against their
 `json.dumps()` representation.
 
-The current selector checks candidates on demand rather than constructing a
-complete mask for every vocabulary token. It leaves the original logits
-unchanged. This differs from the full-mask sequence described in subject V.3.3
-and needs a final compliance review before submission.
+The selector checks candidates on demand rather than constructing a complete
+mask for every vocabulary token. Invalid candidates receive negative infinity
+in a working copy of the logits, leaving the original list unchanged.
 
 ## Design decisions and challenges
 
@@ -199,8 +200,8 @@ and needs a final compliance review before submission.
 
 The subject targets at least 90% correct function and argument predictions,
 100% parseable and schema-compliant results, and processing the test set in
-under five minutes on standard hardware. These are targets, not measured
-results for the current implementation.
+under five minutes on standard hardware. These figures are assignment targets;
+they are not benchmark results established for this implementation.
 
 The program displays inference and selection durations per token, followed by
 the total request-processing time. That total excludes model loading,
@@ -219,7 +220,7 @@ cache for reusing previous inference states.
 There is no generation token limit. Prefix validity alone does not guarantee
 that generation will finish or that the extracted arguments are correct.
 
-## Testing strategy and current status
+## Testing strategy
 
 Development checks have covered prefix handling, token selection, error
 reporting and integration with simulated SDK responses. The command-line
@@ -227,36 +228,38 @@ integration was checked with default paths, custom paths containing spaces,
 output directory creation, help and invalid arguments. Makefile commands were
 inspected with `make -n` without running inference.
 
-The application files passed `flake8 src` and the following limited type check:
+Application code passed the following style and type checks:
 
 ```bash
+uv run flake8 --jobs 1 src
 uv run mypy src --warn-return-any --warn-unused-ignores \
     --ignore-missing-imports --disallow-untyped-defs \
     --check-untyped-defs --follow-imports=skip
 ```
 
-This does not establish that `make lint` passes: flake8 reports issues in the
-provided SDK, and the full mypy run has not been completed in this review.
-Development test scripts are not included as a repository test suite.
+These checks were run using the installed virtual environment. They match the
+scope of the current lint target; the repository-wide commands required by
+the subject were not run during this review. Development test scripts are
+not included as a repository test suite.
 
 The review also checked an existing file containing 11 results for expected
 keys, request order, function names and parameter types. That file does not
 establish current-model accuracy or runtime.
 
-Known issues still to resolve or verify:
+## Technical limitations
 
-- Empty decoded tokens can be selected without advancing the response.
-- A candidate ID missing from the decoded dictionary causes a lookup error.
-- Replacement characters from isolated token decoding can enter string values.
-- Very large decimals can overflow to infinity and fail during output writing.
-- There is no independent final schema validator after JSON parsing.
-- Empty request or function lists do not bypass model loading.
+The implementation supports flat parameters of type `string`, `number` and
+`boolean`, with the JSON syntax restrictions described above. Schema constraints
+are enforced during prefix validation; there is no separate final schema
+validation pass after parsing.
 
-Before submission, repeat inference with the current Qwen implementation and
-different function sets. Cover empty strings, quotes, backslashes, Unicode,
-booleans, large numbers, functions without parameters, multiple parameters,
-ambiguous requests, malformed JSON and missing files. Measure schema validity,
-function accuracy, argument accuracy and elapsed time separately.
+Token selection assumes candidate IDs exist in the decoded vocabulary. Empty
+decoded tokens can leave the response unchanged, and isolated token decoding
+can introduce replacement characters. Numbers outside the finite floating-point
+range can fail when the output is written with `allow_nan=False`.
+
+An empty request list still loads the model before saving an empty array.
+Requests with no available functions are rejected before model loading.
 
 ## Project structure
 
@@ -291,8 +294,6 @@ uv.lock              Dependency lock file
   maximum selection and tie behavior.
 - [uv project guide](https://docs.astral.sh/uv/guides/projects/): dependency
   management and project execution.
-- The supplied Call Me Maybe subject, version 1.5: assignment requirements and
-  the description of constrained decoding in V.3.3.
 
 ### AI assistance
 
@@ -300,6 +301,7 @@ AI assisted with explaining the SDK and constrained decoding, proposing and
 reviewing Python changes, simplifying validation and selection approaches,
 writing temporary checks with simulated SDK responses, reviewing project
 requirements, implementing command-line arguments, adjusting the Makefile and
-drafting this README. Generated changes and explanations require review and
-understanding by the author. Simulated checks do not replace real inference
+drafting and checking this README against the implementation and subject.
+Generated changes and explanations require review and understanding by the
+author. Simulated checks do not replace real inference
 measurements.

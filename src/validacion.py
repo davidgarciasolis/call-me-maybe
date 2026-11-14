@@ -41,15 +41,7 @@ def prefijo_booleano_valido(fragmento: str) -> bool:
 
 
 def prefijo_valor_valido(fragmento: str, tipo: str) -> bool:
-    """Comprueba un prefijo según el tipo declarado del parámetro."""
-    if tipo == "string":
-        if not fragmento:
-            return True
-        try:
-            return isinstance(json.loads(fragmento), str)
-        except json.JSONDecodeError as error:
-            return error.msg == "Unterminated string starting at"
-
+    """Comprueba un prefijo de número o booleano según el tipo declarado."""
     if tipo == "number":
         return prefijo_numero_valido(fragmento)
 

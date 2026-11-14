@@ -129,6 +129,7 @@ def main() -> int:
     duracion: float
 
     try:
+        inicio = perf_counter()
         argumentos = leer_argumentos()
         funciones = load_functions(argumentos.functions_definition)
         promts = load_prompts(argumentos.input)
@@ -138,7 +139,6 @@ def main() -> int:
                 "Hay peticiones, pero no hay funciones disponibles."
             )
 
-        inicio = perf_counter()
         print("Cargando el modelo. Performeando al máximo nivel", flush=True)
         modelo = inicializar_modelo()
         vocabulario = cargar_vocabulario(modelo)

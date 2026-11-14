@@ -143,7 +143,7 @@ def main() -> int:
         modelo = inicializar_modelo()
         vocabulario = cargar_vocabulario(modelo)
         tokens_decodificados = preparar_tokens(modelo, vocabulario)
-        print("Modelo preparado.", flush=True)
+        print("Modelo preparado. Performeando al máximo nivel", flush=True)
 
         resultados = procesar_promts(
             modelo, funciones, promts, tokens_decodificados

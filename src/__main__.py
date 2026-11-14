@@ -27,53 +27,32 @@ def generar_respuesta(
     logits: list[float]
     ids_generados: list[int]
     siguiente_id: int
-    paso: int
     respuesta: str
     resultado: Any
-    inicio: float
-    duracion: float
 
-    paso = 0
     ids_generados = []
     respuesta = ""
     resultado = None
-    print("Generando con restricciones...", flush=True)
 
     while not isinstance(resultado, dict):
-        print(
-            f"Calculando token {paso + 1}...",
-            flush=True,
-        )
-        inicio = perf_counter()
         logits = modelo.get_logits_from_input_ids(ids)
-        duracion = perf_counter() - inicio
-        print(f"Consulta completada en {duracion:.2f} s.", flush=True)
 
         if not logits:
             raise ValueError("El modelo no ha devuelto logits.")
 
-        inicio = perf_counter()
         siguiente_id = seleccionar_token(
             logits, respuesta, tokens_decodificados, funciones
-        )
-        duracion = perf_counter() - inicio
-        print(
-            f"Selección completada en {duracion:.3f} s.",
-            flush=True,
         )
         ids.append(siguiente_id)
         ids_generados.append(siguiente_id)
 
         respuesta += tokens_decodificados[siguiente_id]
-        print("Respuesta parcial:", repr(respuesta), flush=True)
-        paso += 1
 
         try:
             resultado = json.loads(respuesta)
         except json.JSONDecodeError:
             continue
 
-    print("JSON completo. Generación terminada.", flush=True)
     if modelo.decode(ids_generados) != respuesta:
         raise ValueError("El texto concatenado no coincide con el SDK.")
     return respuesta
@@ -96,21 +75,22 @@ def procesar_promts(
     llamada: dict[str, Any]
     resultado: dict[str, Any]
     resultados: list[dict[str, Any]]
+    inicio: float
+    duracion: float
 
     resultados = []
-    print("Prompts preparados para el modelo:")
     for indice, promt in enumerate(promts, start=1):
         try:
+            print(
+                f"Procesando petición {indice}/{len(promts)}...",
+                flush=True,
+            )
+            inicio = perf_counter()
             texto = construir_prompt(funciones, promt["prompt"])
-            print(f"\n========== Prompt {indice} ==========\n")
-            print(texto)
 
             tokens = modelo.encode(texto)
             listas_ids = tokens.tolist()
             ids = listas_ids[0]
-
-            print("IDs del prompt:")
-            print(ids)
 
             respuesta = generar_respuesta(
                 modelo, ids, funciones, tokens_decodificados
@@ -122,8 +102,12 @@ def procesar_promts(
                 "parameters": llamada["parameters"],
             }
             resultados.append(resultado)
-            print("Resultado:")
-            print(json.dumps(resultado))
+            duracion = perf_counter() - inicio
+            print(
+                f"Petición {indice}/{len(promts)} completada "
+                f"en {duracion:.2f} s.",
+                flush=True,
+            )
         except Exception as error:
             raise ErrorProcesamientoPromts(
                 f"Petición {indice}: {error}"
@@ -154,27 +138,21 @@ def main() -> int:
                 "Hay peticiones, pero no hay funciones disponibles."
             )
 
-        print("Funciones:")
-        print(funciones)
-
-        print("Peticiones:")
-        print(promts)
-
-        print("Cargando el modelo...")
+        inicio = perf_counter()
+        print("Cargando el modelo...", flush=True)
         modelo = inicializar_modelo()
         vocabulario = cargar_vocabulario(modelo)
         tokens_decodificados = preparar_tokens(modelo, vocabulario)
-        print(f"Modelo preparado. Vocabulario: {len(vocabulario)} tokens.")
+        print("Modelo preparado.", flush=True)
 
-        inicio = perf_counter()
         resultados = procesar_promts(
             modelo, funciones, promts, tokens_decodificados
         )
-        duracion = perf_counter() - inicio
         guardar_resultados(argumentos.output, resultados)
+        duracion = perf_counter() - inicio
+        print(f"Resultados guardados en {argumentos.output}", flush=True)
         print(
-            f"Tiempo total de generación de todas las respuestas: "
-            f"{duracion:.2f} s.",
+            f"Tiempo total: {duracion:.2f} s.",
             flush=True,
         )
     except ErrorCargaModelo as error:

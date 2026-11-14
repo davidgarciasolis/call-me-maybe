@@ -39,7 +39,7 @@ def seleccionar_token(
 
     valores = logits.copy()
 
-    while valores:
+    while True:
         identificador = int(np.argmax(valores))
         if valores[identificador] == float("-inf"):
             break

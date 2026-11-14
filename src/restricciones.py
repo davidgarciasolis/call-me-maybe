@@ -28,22 +28,14 @@ def consumir_cadena(respuesta: str, posicion: int) -> int | None:
     Conserva los escapes simples admitidos por la versión anterior.
     """
     caracter: str
-    escape: bool
 
     if respuesta[posicion] != '"':
         return None
     posicion += 1
-    escape = False
     while posicion < len(respuesta):
         caracter = respuesta[posicion]
         posicion += 1
-        if escape:
-            if caracter not in '"\\/bfnrt':
-                return None
-            escape = False
-        elif caracter == "\\":
-            escape = True
-        elif caracter == '"':
+        if caracter == '"':
             return posicion
         elif ord(caracter) < 32:
             return None

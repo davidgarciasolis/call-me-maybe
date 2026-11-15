@@ -139,7 +139,7 @@ def main() -> int:
                 "Hay peticiones, pero no hay funciones disponibles."
             )
 
-        print("Cargando el modelo. Performeando al máximo nivel", flush=True)
+        print("Cargando el modelo.", flush=True)
         modelo = inicializar_modelo()
         vocabulario = cargar_vocabulario(modelo)
         tokens_decodificados = preparar_tokens(modelo, vocabulario)

@@ -16,9 +16,9 @@ def consumir_fijo(
     fragmento: str
 
     fragmento = respuesta[posicion:posicion + len(esperado)]
-    if not esperado.startswith(fragmento):
-        return None
-    return posicion + len(esperado)
+    if esperado.startswith(fragmento):
+        return posicion + len(esperado)
+    return None
 
 
 def consumir_cadena(respuesta: str, posicion: int) -> int | None:

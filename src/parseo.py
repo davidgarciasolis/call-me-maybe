@@ -1,7 +1,52 @@
 """Lectura y validación de los archivos de entrada."""
 
 import json
-from typing import Any, TextIO
+from typing import Any, Literal, TextIO
+
+from pydantic import BaseModel, ValidationError, field_validator
+
+
+class Parametro(BaseModel):
+    """Definición de un parámetro con uno de los tipos admitidos."""
+
+    type: Literal["string", "number", "boolean"]
+
+
+class Retorno(BaseModel):
+    """Definición del tipo de retorno de una función."""
+
+    type: str
+
+    @field_validator("type")
+    @classmethod
+    def validar_tipo(cls, valor: str) -> str:
+        """Rechaza un tipo vacío o compuesto solo por espacios."""
+        if not valor.strip():
+            raise ValueError("El tipo de retorno no puede estar vacío.")
+        return valor
+
+
+class Funcion(BaseModel):
+    """Estructura de una función disponible para el modelo."""
+
+    name: str
+    description: str
+    parameters: dict[str, Parametro]
+    returns: Retorno
+
+    @field_validator("name")
+    @classmethod
+    def validar_nombre(cls, valor: str) -> str:
+        """Rechaza un nombre vacío o compuesto solo por espacios."""
+        if not valor.strip():
+            raise ValueError("El nombre no puede estar vacío.")
+        return valor
+
+
+class Peticion(BaseModel):
+    """Petición en lenguaje natural que contiene un campo prompt."""
+
+    prompt: str
 
 
 def read_json(ruta: str) -> Any:
@@ -12,114 +57,52 @@ def read_json(ruta: str) -> Any:
         return json.load(archivo)
 
 
-def validar_campos(funcion: Any, contexto: str) -> str:
-    """Valida el nombre y la descripción y devuelve el nombre."""
-    campo: str
-    nombre: str
-
-    if not isinstance(funcion, dict):
-        raise ValueError(f"{contexto}: debe ser un objeto.")
-
-    for campo in ("name", "description"):
-        if not isinstance(funcion.get(campo), str):
-            raise ValueError(f"{contexto}: '{campo}' debe ser texto.")
-
-    nombre = funcion["name"]
-    if not nombre.strip():
-        raise ValueError(f"{contexto}: el nombre no puede estar vacío.")
-
-    return nombre
-
-
-def validar_parametros(funcion: dict[str, Any], contexto: str) -> None:
-    """Valida la estructura y el tipo declarado de cada parámetro."""
-    parametros: Any
-    parametro: str
-    definicion: Any
-    tipo: Any
-
-    parametros = funcion.get("parameters")
-    if not isinstance(parametros, dict):
-        raise ValueError(f"{contexto}: 'parameters' debe ser un objeto.")
-
-    for parametro, definicion in parametros.items():
-        if not isinstance(definicion, dict):
-            raise ValueError(
-                f"{contexto}: el parámetro '{parametro}' debe ser un objeto."
-            )
-        tipo = definicion.get("type")
-        if not isinstance(tipo, str) or not tipo.strip():
-            raise ValueError(
-                f"{contexto}: el parámetro '{parametro}' necesita un 'type' "
-                "de texto no vacío."
-            )
-        if tipo not in ("string", "number", "boolean"):
-            raise ValueError(
-                f"{contexto}: tipo no admitido '{tipo}' "
-                f"para el parámetro '{parametro}'."
-            )
-
-
-def validar_retorno(funcion: dict[str, Any], contexto: str) -> None:
-    """Valida la estructura y el tipo declarado del retorno."""
-    retorno: Any
-    tipo_retorno: Any
-
-    retorno = funcion.get("returns")
-    if not isinstance(retorno, dict):
-        raise ValueError(f"{contexto}: 'returns' debe ser un objeto.")
-    tipo_retorno = retorno.get("type")
-    if not isinstance(tipo_retorno, str) or not tipo_retorno.strip():
-        raise ValueError(
-            f"{contexto}: 'returns.type' debe ser texto no vacío."
-        )
-
-
 def load_functions(ruta: str) -> list[dict[str, Any]]:
-    """Lee y valida las definiciones de funciones del archivo indicado."""
+    """Lee y valida las funciones conservando los diccionarios originales."""
     funciones: Any
     nombres: set[str]
     indice: int
     funcion: Any
     contexto: str
-    nombre: str
+    validada: Funcion
 
     funciones = read_json(ruta)
-
     if not isinstance(funciones, list):
         raise ValueError(f"{ruta}: se esperaba una lista de funciones.")
 
     nombres = set()
     for indice, funcion in enumerate(funciones, start=1):
         contexto = f"{ruta}: función {indice}"
-        nombre = validar_campos(funcion, contexto)
-        if nombre in nombres:
-            raise ValueError(f"{contexto}: nombre duplicado '{nombre}'.")
-        nombres.add(nombre)
+        try:
+            validada = Funcion.model_validate(funcion, strict=True)
+        except ValidationError as error:
+            raise ValueError(f"{contexto}: {error}") from error
 
-        validar_parametros(funcion, contexto)
-        validar_retorno(funcion, contexto)
+        if validada.name in nombres:
+            raise ValueError(
+                f"{contexto}: nombre duplicado '{validada.name}'."
+            )
+        nombres.add(validada.name)
 
     return funciones
 
 
 def load_prompts(ruta: str) -> list[dict[str, Any]]:
-    """Lee y valida una lista de objetos con un campo 'prompt' de texto."""
+    """Lee y valida las peticiones conservando los diccionarios originales."""
     promts: Any
     indice: int
     promt: Any
     contexto: str
 
     promts = read_json(ruta)
-
     if not isinstance(promts, list):
         raise ValueError(f"{ruta}: se esperaba una lista de promts.")
 
     for indice, promt in enumerate(promts, start=1):
         contexto = f"{ruta}: promt {indice}"
-        if not isinstance(promt, dict):
-            raise ValueError(f"{contexto}: debe ser un objeto.")
-        if not isinstance(promt.get("prompt"), str):
-            raise ValueError(f"{contexto}: 'prompt' debe ser texto.")
+        try:
+            Peticion.model_validate(promt, strict=True)
+        except ValidationError as error:
+            raise ValueError(f"{contexto}: {error}") from error
 
     return promts

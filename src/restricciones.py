@@ -100,7 +100,9 @@ def prefijo_funcion_valido(
         separador = ","
 
     posicion = consumir_fijo(respuesta, posicion, "}}")
-    return posicion is not None and posicion >= len(respuesta)
+    if posicion is None:
+        return False
+    return posicion >= len(respuesta)
 
 
 def prefijo_llamada_valido(

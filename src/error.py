@@ -1,13 +1,13 @@
-"""Excepciones para identificar la etapa en la que falla el programa."""
+"""Exceptions identifying the stage at which the program fails."""
 
 
-class ErrorCargaModelo(Exception):
-    """Indica un fallo al inicializar el modelo."""
+class ModelLoadError(Exception):
+    """Indicate a failure to initialize the model."""
 
 
-class ErrorCargaVocabulario(Exception):
-    """Indica un fallo al leer o validar el vocabulario."""
+class VocabularyLoadError(Exception):
+    """Indicate a failure to read or validate the vocabulary."""
 
 
-class ErrorProcesamientoPromts(Exception):
-    """Indica un fallo al preparar o generar una respuesta."""
+class PromptProcessingError(Exception):
+    """Indicate a failure to prepare or generate a response."""

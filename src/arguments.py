@@ -1,28 +1,28 @@
-"""Lectura de las rutas indicadas en la línea de comandos."""
+"""Read paths provided on the command line."""
 
 from argparse import ArgumentParser, Namespace
 
 
-def leer_argumentos() -> Namespace:
-    """Lee las rutas de entrada y salida, con valores predeterminados."""
+def parse_arguments() -> Namespace:
+    """Read input and output paths, using default values."""
     parser: ArgumentParser
 
     parser = ArgumentParser(
-        description="Traduce peticiones a llamadas de funciones."
+        description="Translate requests into function calls."
     )
     parser.add_argument(
         "--functions_definition",
         default="data/input/functions_definition.json",
-        help="Ruta del JSON con las definiciones de funciones.",
+        help="Path to the JSON file containing function definitions.",
     )
     parser.add_argument(
         "--input",
         default="data/input/function_calling_tests.json",
-        help="Ruta del JSON con las peticiones.",
+        help="Path to the JSON file containing requests.",
     )
     parser.add_argument(
         "--output",
         default="data/output/function_calling_results.json",
-        help="Ruta donde guardar los resultados.",
+        help="Path where results will be saved.",
     )
     return parser.parse_args()

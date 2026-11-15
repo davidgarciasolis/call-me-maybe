@@ -1,19 +1,19 @@
-"""Construcción de las instrucciones para el modelo."""
+"""Build instructions for the model."""
 
 import json
 from typing import Any
 
 
-def construir_prompt(
-    funciones: list[dict[str, Any]],
-    promt: str,
+def build_prompt(
+    functions: list[dict[str, Any]],
+    prompt: str,
 ) -> str:
-    """Combina las instrucciones, las funciones y la petición."""
-    instrucciones: str
-    funciones_json: str
-    texto: str
+    """Combine the instructions, functions and request."""
+    instructions: str
+    functions_json: str
+    text: str
 
-    instrucciones = (
+    instructions = (
         "Choose one of the available functions for the user's request.\n"
         "Extract its arguments from the request. Do not execute it.\n"
         "Return only a JSON object with the keys "
@@ -26,13 +26,13 @@ def construir_prompt(
         "and respect the declared parameter types.\n"
     )
 
-    funciones_json = json.dumps(funciones)
+    functions_json = json.dumps(functions)
 
-    texto = (
-        f"{instrucciones}\n"
-        f"Available functions:\n{funciones_json}\n\n"
-        f"User request:\n{promt}\n\n"
+    text = (
+        f"{instructions}\n"
+        f"Available functions:\n{functions_json}\n\n"
+        f"User request:\n{prompt}\n\n"
         "Response:\n"
     )
 
-    return texto
+    return text

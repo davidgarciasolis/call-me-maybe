@@ -265,14 +265,14 @@ Requests with no available functions are rejected before model loading.
 ```text
 src/
     __main__.py       Application flow and generation
-    argumentos.py    Command-line paths
-    parseo.py        Input reading and validation
-    modelo.py        Model and vocabulary loading
+    arguments.py     Command-line paths
+    parsing.py       Input reading and validation
+    model.py         Model and vocabulary loading
     prompts.py       Prompt construction
-    decodificacion.py Token preparation and selection
-    restricciones.py Function-call prefix validation
-    validacion.py    Number, boolean and value validation
-    salida.py        JSON output writing
+    decoding.py      Token preparation and selection
+    constraints.py   Function-call prefix validation
+    validation.py    Number, boolean and value validation
+    output.py        JSON output writing
     error.py         Application exceptions
 llm_sdk/             Supplied model SDK
 data/input/          Example definitions and requests

@@ -1,7 +1,7 @@
 [project]
 name = "call-me-maybe"
 version = "0.1.0"
-description = "Llamadas a funciones con decodificación restringida"
+description = "Function calls with constrained decoding"
 requires-python = ">=3.10"
 dependencies = [
     "llm-sdk",

@@ -13,7 +13,7 @@ export HF_DATASETS_CACHE ?= $(HF_HOME)/datasets
 export HF_HUB_VERBOSITY := error
 export TMPDIR := $(SGOINFRE)/tmp
 
-.PHONY: install run debug clean lint prepare
+.PHONY: install run debug clean lint lint-strict prepare
 
 prepare:
 	mkdir -p "$(UV_CACHE_DIR)" "$(HF_HUB_CACHE)" "$(HF_DATASETS_CACHE)" \
@@ -43,3 +43,7 @@ lint: prepare
 	uv run --python "$(PYTHON)" mypy src --warn-return-any \
 		--warn-unused-ignores --ignore-missing-imports \
 		--disallow-untyped-defs --check-untyped-defs --follow-imports=skip
+
+lint-strict: prepare
+	uv run --python "$(PYTHON)" flake8 src
+	uv run --python "$(PYTHON)" mypy --strict src

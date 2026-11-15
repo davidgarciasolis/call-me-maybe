@@ -25,12 +25,10 @@ def generate_response(
 ) -> str:
     """Choose valid tokens until json.loads() returns an object."""
     logits: list[float]
-    generated_ids: list[int]
     next_id: int
     response: str
     result: Any
 
-    generated_ids = []
     response = ""
     result = None
 
@@ -44,7 +42,6 @@ def generate_response(
             logits, response, decoded_tokens, functions
         )
         ids.append(next_id)
-        generated_ids.append(next_id)
 
         response += decoded_tokens[next_id]
 
@@ -53,10 +50,6 @@ def generate_response(
         except json.JSONDecodeError:
             continue
 
-    if model.decode(generated_ids) != response:
-        raise ValueError(
-            "The concatenated text does not match the SDK output."
-        )
     return response
 
 

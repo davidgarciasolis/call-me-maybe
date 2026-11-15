@@ -1,19 +1,16 @@
-SHELL := /bin/bash
 .DEFAULT_GOAL := install
 
 SGOINFRE ?= $(HOME)/sgoinfre
 VENV_DIR ?= $(SGOINFRE)/venvs/call-me-maybe
 PYTHON ?= python3.10
-THREADS ?= 2
 
-export OMP_NUM_THREADS := $(THREADS)
-export MKL_NUM_THREADS := $(THREADS)
 export UV_CACHE_DIR ?= $(SGOINFRE)/uv-cache
 export UV_LINK_MODE := copy
 export UV_PROJECT_ENVIRONMENT := $(VENV_DIR)
 export HF_HOME ?= $(SGOINFRE)/huggingface_cache
 export HF_HUB_CACHE ?= $(HF_HOME)/hub
 export HF_DATASETS_CACHE ?= $(HF_HOME)/datasets
+export HF_HUB_VERBOSITY := error
 export TMPDIR := $(SGOINFRE)/tmp
 
 .PHONY: install run debug clean lint prepare

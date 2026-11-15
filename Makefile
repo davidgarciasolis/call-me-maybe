@@ -5,6 +5,7 @@ VENV_DIR ?= $(SGOINFRE)/venvs/call-me-maybe
 PYTHON ?= python3.10
 
 export UV_CACHE_DIR ?= $(SGOINFRE)/uv-cache
+export MYPY_CACHE_DIR ?= $(SGOINFRE)/mypy-cache
 export UV_LINK_MODE := copy
 export UV_PROJECT_ENVIRONMENT := $(VENV_DIR)
 export HF_HOME ?= $(SGOINFRE)/huggingface_cache
@@ -17,7 +18,7 @@ export TMPDIR := $(SGOINFRE)/tmp
 
 prepare:
 	mkdir -p "$(UV_CACHE_DIR)" "$(HF_HUB_CACHE)" "$(HF_DATASETS_CACHE)" \
-		"$(TMPDIR)" "$(dir $(VENV_DIR))"
+		"$(TMPDIR)" "$(dir $(VENV_DIR))" "$(MYPY_CACHE_DIR)"
 
 install: prepare
 	uv sync --python "$(PYTHON)"

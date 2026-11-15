@@ -72,6 +72,7 @@ uv run python -m src --help
 The program reports file, model and processing errors on standard error and
 returns status `1`. Argument errors are handled by `argparse`, which returns
 status `2`. A successful run returns `0`.
+Interrupting execution with Ctrl+C returns status `130`.
 
 ### Makefile
 
@@ -82,14 +83,14 @@ status `2`. A successful run returns `0`.
 | `make debug` | Run under Python's `pdb` debugger. |
 | `make clean` | Remove Python bytecode and development caches. |
 | `make lint` | Check `src` with flake8 and mypy, skipping imported modules. |
+| `make lint-strict` | Check `src` with flake8 and `mypy --strict`. |
 
 The Makefile defaults to `~/sgoinfre` for its virtual environment, caches and
-temporary files. It configures two CPU threads through `OMP_NUM_THREADS` and
-`MKL_NUM_THREADS`. For another storage location or thread count:
+temporary files. For another storage location:
 
 ```bash
 make install SGOINFRE=/path/to/storage
-make run SGOINFRE=/path/to/storage THREADS=4
+make run SGOINFRE=/path/to/storage
 ```
 
 `make run` and `make debug` pass the default paths directly in their commands.
@@ -99,6 +100,8 @@ The current lint target checks application code only. Subject IV.2 specifies
 `flake8 .` and `mypy . --warn-return-any --warn-unused-ignores
 --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs`.
 Passing the narrower checks does not establish compliance with those commands.
+The mypy configuration points to the local SDK package and skips checking its
+internals, including when checking `src` with `--strict`.
 
 ## Input and output
 
@@ -157,8 +160,7 @@ steps:
    repeat the search. Accept the first valid candidate. Ties use the lowest ID.
 7. Add the accepted ID to the context and its text to the response, then query
    the model again.
-8. Stop when `json.loads()` parses the response as an object. Compare the
-   concatenated token text with the SDK's decoding of all generated IDs.
+8. Stop when `json.loads()` parses the response as an object.
 9. Add the original request and collect the result for the output file.
 
 Prefix validation starts from the beginning of the accumulated response for
@@ -167,10 +169,12 @@ known function and parameter names, and parameters in definition order. It
 checks separators, value syntax and closing braces while accepting incomplete
 prefixes that can still be extended.
 
-Numbers use decimal notation without exponents. Strings accept literal Unicode
-characters and simple JSON escapes, but generated string arguments do not
-support `\uXXXX` escapes. Structural names are matched against their
-`json.dumps()` representation.
+Numbers use decimal notation without exponents. String arguments must be
+nonempty and cannot contain unescaped control characters. The current string
+scanner does not track escapes: it treats every quote as a closing quote and
+does not validate backslash sequences. Consequently, escaped quotes are not
+handled correctly, and some invalid JSON strings pass the prefix check.
+Structural names are matched against their `json.dumps()` representation.
 
 The selector checks candidates on demand rather than constructing a complete
 mask for every vocabulary token. Invalid candidates receive negative infinity
@@ -190,8 +194,8 @@ in a working copy of the logits, leaving the original list unchanged.
 - **Separate request contexts:** requests share the loaded model and decoded
   vocabulary, but each has its own input and generated token IDs.
 - **Token boundaries:** decoding each token separately keeps the code simple,
-  but does not preserve UTF-8 bytes split across tokens. A final comparison with
-  the SDK detects a mismatch; it does not recover the missing characters.
+  but does not preserve UTF-8 bytes split across tokens. There is no final
+  comparison with the SDK's decoding of the complete generated ID sequence.
 - **Error context:** processing errors include the request number. File and
   model failures are reported separately to help identify the failing step.
 
@@ -199,12 +203,26 @@ in a working copy of the logits, leaving the original list unchanged.
 
 The subject targets at least 90% correct function and argument predictions,
 100% parseable and schema-compliant results, and processing the test set in
-under five minutes on standard hardware. These figures are assignment targets;
-they are not benchmark results established for this implementation.
+under five minutes on standard hardware.
 
-The program displays inference and selection durations per token, followed by
-the total request-processing time. That total excludes model loading,
-vocabulary preparation and output writing. To measure the whole command:
+Reports 100% accuracy on the 11 test requests (11/11 correct function
+selections and argument extractions), with these timings for processing the
+complete set:
+
+| Computer | Processing time |
+| --- | --- |
+| MacBook Air M1 | 120 ms |
+| 42 campus computer | 230 ms |
+
+Whether these timings include model loading is unknown. These results were
+reported by the author and were not independently verified during this review.
+Accuracy on this set does not establish accuracy on other requests.
+
+The program displays the duration of each request, including prompt construction,
+encoding and generation. It also displays a total that includes input reading,
+model loading, vocabulary preparation, request processing and output writing.
+It does not display separate inference or token-selection timings.
+To measure the whole command, including Python startup:
 
 ```bash
 time uv run python -m src
@@ -234,10 +252,11 @@ uv run flake8 --jobs 1 src
 uv run mypy src --warn-return-any --warn-unused-ignores \
     --ignore-missing-imports --disallow-untyped-defs \
     --check-untyped-defs --follow-imports=skip
+uv run mypy --strict src
 ```
 
 These checks were run using the installed virtual environment. They match the
-scope of the current lint target; the repository-wide commands required by
+scope of the `lint` and `lint-strict` targets; the repository-wide commands required by
 the subject were not run during this review. Development test scripts are
 not included as a repository test suite.
 
@@ -249,8 +268,10 @@ establish current-model accuracy or runtime.
 
 The implementation supports flat parameters of type `string`, `number` and
 `boolean`, with the JSON syntax restrictions described above. Schema constraints
-are enforced during prefix validation; there is no separate final schema
-validation pass after parsing.
+are checked during prefix validation, subject to the string-scanning limitations
+described above; there is no separate final schema validation pass after parsing.
+If an invalid escape is accepted during generation, `json.loads()` rejects the
+response and generation continues rather than reporting a completed call.
 
 Token selection assumes candidate IDs exist in the decoded vocabulary. Empty
 decoded tokens can leave the response unchanged, and isolated token decoding

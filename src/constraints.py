@@ -6,6 +6,58 @@ from typing import Any
 from .validation import is_valid_value_prefix, is_complete_value
 
 
+def get_fixed_suffix(
+    response: str, functions: list[dict[str, Any]],
+) -> str:
+    """Complete fixed structure after the model chooses a function.
+
+    Numbers need a generated delimiter: a complete number can still grow.
+    Strings and booleans have an unambiguous end.
+    """
+    function: dict[str, Any]
+    header: str
+    position: int
+    expected: str
+    fragment: str
+    separator: str
+    name: str
+    definition: dict[str, Any]
+    value: Any
+    end: int
+    decoder: json.JSONDecoder
+
+    decoder = json.JSONDecoder()
+    for function in functions:
+        header = '{"name":' + json.dumps(function["name"])
+        if not response.startswith(header):
+            continue
+        position = len(header)
+        separator = ',"parameters":{'
+        for name, definition in function["parameters"].items():
+            expected = separator + json.dumps(name) + ":"
+            fragment = response[position:position + len(expected)]
+            if not expected.startswith(fragment):
+                return ""
+            if len(fragment) < len(expected):
+                return expected[len(fragment):]
+            position += len(expected)
+            try:
+                value, end = decoder.raw_decode(response, position)
+            except ValueError:
+                return ""
+            if definition["type"] == "number" and end == len(response):
+                return ""
+            position = end
+            separator = ","
+
+        expected = separator + "}}" if not function["parameters"] else "}}"
+        fragment = response[position:]
+        if expected.startswith(fragment):
+            return expected[len(fragment):]
+        return ""
+    return ""
+
+
 def consume_fixed(
     response: str, position: int, expected: str,
 ) -> int | None:

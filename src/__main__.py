@@ -5,6 +5,7 @@ from time import perf_counter
 from typing import Any
 
 from .arguments import parse_arguments
+from .constraints import get_fixed_suffix
 from .decoding import prepare_tokens, select_token
 from .error import (
     ModelLoadError,
@@ -23,17 +24,38 @@ def generate_response(
     functions: list[dict[str, Any]],
     decoded_tokens: dict[int, str],
 ) -> str:
-    """Choose valid tokens until json.loads() returns an object."""
+    """Generate choices and values, inserting fixed JSON structure."""
     logits: list[float]
     next_id: int
     response: str
     result: Any
+    suffix: str
+    inserted_ids: list[int]
+    generated_steps: int
+    inserted_tokens: int
 
     response = ""
     result = None
+    suffix = '{"name":"'
+    generated_steps = 0
+    inserted_tokens = 0
 
     while not isinstance(result, dict):
+        if suffix:
+            inserted_ids = model.encode(suffix).tolist()[0]
+            ids.extend(inserted_ids)
+            inserted_tokens += len(inserted_ids)
+            response += suffix
+
+        try:
+            result = json.loads(response)
+        except json.JSONDecodeError:
+            result = None
+        if isinstance(result, dict):
+            break
+
         logits = model.get_logits_from_input_ids(ids)
+        generated_steps += 1
 
         if not logits:
             raise ValueError("The model returned no logits.")
@@ -44,12 +66,18 @@ def generate_response(
         ids.append(next_id)
 
         response += decoded_tokens[next_id]
+        suffix = get_fixed_suffix(response, functions)
 
         try:
             result = json.loads(response)
         except json.JSONDecodeError:
             continue
 
+    print(
+        f"Generated tokens: {generated_steps}; "
+        f"inserted tokens: {inserted_tokens}.",
+        flush=True,
+    )
     return response
 
 

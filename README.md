@@ -23,6 +23,22 @@ generation, it checks candidate tokens against the structure of the available
 functions. Instructions in the prompt describe the task; token restrictions
 control the generated structure.
 
+The current performance experiment inserts fixed JSON text through the SDK's
+`encode()` method, without requesting logits for that text. It inserts the
+`{"name":"` prefix, then the `parameters` key, parameter names and closing
+braces once the model has chosen the function and completed each value.
+Function names and argument values still use constrained token selection.
+Numbers require a generated comma or brace before insertion continues, since
+digits or a decimal point could extend the value. Strings and booleans have
+an unambiguous end.
+
+Each request reports generated tokens (inference steps), inserted tokens and
+elapsed time. Inserted tokens still enter the model context; their count is
+not an exact measure of tokens saved compared with the previous version,
+because token boundaries and model choices can change. This experiment has
+not yet been benchmarked with real inference, and differs from the subject's
+token-by-token generation of the entire structure.
+
 ## Instructions
 
 ### Requirements and installation
